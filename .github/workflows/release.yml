@@ -44,7 +44,22 @@ jobs:
       - run: dotnet test --configuration Release --no-build
       - run: dotnet format --verify-no-changes
       - run: dotnet pack --configuration Release --no-build --output artifacts/packages -p:PackageVersion=${{ steps.version.outputs.value }} -p:VersionPrefix=${{ steps.version.outputs.value }}
-      - run: dotnet restore smoke/clean-install/DebugBundle.Smoke.csproj -p:DebugBundlePackageVersion=${{ steps.version.outputs.value }} --packages artifacts/smoke/nuget-cache --source artifacts/packages --source https://api.nuget.org/v3/index.json
+      - name: Write smoke NuGet config
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/smoke | Out-Null
+          $packageSource = [System.IO.Path]::GetFullPath("artifacts/packages")
+          @"
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="local-packages" value="$packageSource" />
+              <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
+            </packageSources>
+          </configuration>
+          "@ | Set-Content -Path artifacts/smoke/NuGet.config -NoNewline -Encoding utf8
+      - run: dotnet restore smoke/clean-install/DebugBundle.Smoke.csproj -p:DebugBundlePackageVersion=${{ steps.version.outputs.value }} --packages artifacts/smoke/nuget-cache --configfile artifacts/smoke/NuGet.config
       - run: dotnet run --project smoke/clean-install/DebugBundle.Smoke.csproj --configuration Release --no-restore -p:DebugBundlePackageVersion=${{ steps.version.outputs.value }}
 
       - name: NuGet trusted publishing login
