@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Hangfire.Core" Version="1.8.23" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <ProjectReference Include="../DebugBundle.Sdk/DebugBundle.Sdk.csproj" />
   </ItemGroup>
   <ItemGroup>

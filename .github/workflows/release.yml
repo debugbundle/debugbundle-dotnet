@@ -59,8 +59,22 @@ jobs:
             </packageSources>
           </configuration>
           "@ | Set-Content -Path artifacts/smoke/NuGet.config -NoNewline -Encoding utf8
-      - run: dotnet restore smoke/clean-install/DebugBundle.Smoke.csproj -p:DebugBundlePackageVersion=${{ steps.version.outputs.value }} --packages artifacts/smoke/nuget-cache --configfile artifacts/smoke/NuGet.config
-      - run: dotnet run --project smoke/clean-install/DebugBundle.Smoke.csproj --configuration Release --no-restore -p:DebugBundlePackageVersion=${{ steps.version.outputs.value }}
+      - name: Staged-package smoke
+        shell: bash
+        run: |
+          for tfm in net8.0 net10.0; do
+            rm -rf "artifacts/smoke-$tfm"
+            dotnet restore smoke/clean-install/DebugBundle.Smoke.csproj \
+              -p:DebugBundlePackageVersion=${{ steps.version.outputs.value }} \
+              -p:DebugBundleSmokeTargetFramework="$tfm" \
+              --packages "artifacts/smoke-$tfm/nuget-cache" \
+              --configfile artifacts/smoke/NuGet.config
+            dotnet run --project smoke/clean-install/DebugBundle.Smoke.csproj \
+              --configuration Release \
+              --no-restore \
+              -p:DebugBundlePackageVersion=${{ steps.version.outputs.value }} \
+              -p:DebugBundleSmokeTargetFramework="$tfm"
+          done
 
       - name: NuGet trusted publishing login
         uses: NuGet/login@v1
@@ -83,14 +97,23 @@ jobs:
         run: |
           for attempt in $(seq 1 20); do
             rm -rf artifacts/smoke-published
-            if dotnet restore smoke/clean-install/DebugBundle.Smoke.csproj \
-              -p:DebugBundlePackageVersion=${{ steps.version.outputs.value }} \
-              --packages artifacts/smoke-published/nuget-cache \
-              --source https://api.nuget.org/v3/index.json; then
+            success=1
+            for tfm in net8.0 net10.0; do
+              if ! dotnet restore smoke/clean-install/DebugBundle.Smoke.csproj \
+                -p:DebugBundlePackageVersion=${{ steps.version.outputs.value }} \
+                -p:DebugBundleSmokeTargetFramework="$tfm" \
+                --packages "artifacts/smoke-published/$tfm/nuget-cache" \
+                --source https://api.nuget.org/v3/index.json; then
+                success=0
+                break
+              fi
               dotnet run --project smoke/clean-install/DebugBundle.Smoke.csproj \
                 --configuration Release \
                 --no-restore \
-                -p:DebugBundlePackageVersion=${{ steps.version.outputs.value }}
+                -p:DebugBundlePackageVersion=${{ steps.version.outputs.value }} \
+                -p:DebugBundleSmokeTargetFramework="$tfm"
+            done
+            if [ "$success" -eq 1 ]; then
               exit 0
             fi
             sleep 30

@@ -1,6 +1,7 @@
 DOTNET ?= dotnet
 CONFIGURATION ?= Release
 VERSION ?= 0.1.0
+SMOKE_TFM ?= net8.0
 
 .PHONY: restore
 restore:
@@ -26,15 +27,15 @@ pack:
 smoke: pack
 	rm -rf artifacts/smoke
 	mkdir -p artifacts/smoke/nuget-cache
-	$(DOTNET) restore smoke/clean-install/DebugBundle.Smoke.csproj -p:DebugBundlePackageVersion=$(VERSION) --packages artifacts/smoke/nuget-cache --source artifacts/packages --source https://api.nuget.org/v3/index.json
-	$(DOTNET) run --project smoke/clean-install/DebugBundle.Smoke.csproj --configuration $(CONFIGURATION) --no-restore -p:DebugBundlePackageVersion=$(VERSION)
+	$(DOTNET) restore smoke/clean-install/DebugBundle.Smoke.csproj -p:DebugBundlePackageVersion=$(VERSION) -p:DebugBundleSmokeTargetFramework=$(SMOKE_TFM) --packages artifacts/smoke/nuget-cache --source artifacts/packages --source https://api.nuget.org/v3/index.json
+	$(DOTNET) run --project smoke/clean-install/DebugBundle.Smoke.csproj --configuration $(CONFIGURATION) --no-restore -p:DebugBundlePackageVersion=$(VERSION) -p:DebugBundleSmokeTargetFramework=$(SMOKE_TFM)
 
 .PHONY: smoke-published
 smoke-published:
 	rm -rf artifacts/smoke-published
 	mkdir -p artifacts/smoke-published/nuget-cache
-	$(DOTNET) restore smoke/clean-install/DebugBundle.Smoke.csproj -p:DebugBundlePackageVersion=$(VERSION) --packages artifacts/smoke-published/nuget-cache --source https://api.nuget.org/v3/index.json
-	$(DOTNET) run --project smoke/clean-install/DebugBundle.Smoke.csproj --configuration $(CONFIGURATION) --no-restore -p:DebugBundlePackageVersion=$(VERSION)
+	$(DOTNET) restore smoke/clean-install/DebugBundle.Smoke.csproj -p:DebugBundlePackageVersion=$(VERSION) -p:DebugBundleSmokeTargetFramework=$(SMOKE_TFM) --packages artifacts/smoke-published/nuget-cache --source https://api.nuget.org/v3/index.json
+	$(DOTNET) run --project smoke/clean-install/DebugBundle.Smoke.csproj --configuration $(CONFIGURATION) --no-restore -p:DebugBundlePackageVersion=$(VERSION) -p:DebugBundleSmokeTargetFramework=$(SMOKE_TFM)
 
 .PHONY: verify
 verify: restore build test format pack smoke
