@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <DebugBundlePackageVersion Condition="'$(DebugBundlePackageVersion)' == ''">0.1.0</DebugBundlePackageVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="DebugBundle.AspNetCore" Version="$(DebugBundlePackageVersion)" />
+    <PackageReference Include="DebugBundle.AzureFunctions.Worker" Version="$(DebugBundlePackageVersion)" />
+    <PackageReference Include="DebugBundle.Extensions.Logging" Version="$(DebugBundlePackageVersion)" />
+    <PackageReference Include="DebugBundle.Grpc.AspNetCore" Version="$(DebugBundlePackageVersion)" />
+    <PackageReference Include="DebugBundle.Hangfire" Version="$(DebugBundlePackageVersion)" />
+    <PackageReference Include="DebugBundle.Log4Net" Version="$(DebugBundlePackageVersion)" />
+    <PackageReference Include="DebugBundle.NLog" Version="$(DebugBundlePackageVersion)" />
+    <PackageReference Include="DebugBundle.Sdk" Version="$(DebugBundlePackageVersion)" />
+    <PackageReference Include="DebugBundle.Serilog" Version="$(DebugBundlePackageVersion)" />
+    <PackageReference Include="DebugBundle.Worker" Version="$(DebugBundlePackageVersion)" />
+  </ItemGroup>
+</Project>

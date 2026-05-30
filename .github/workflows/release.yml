@@ -1,0 +1,83 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version to publish, for example 0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish NuGet packages
+    runs-on: ubuntu-latest
+    environment: nuget
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            version="${{ inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+      - run: dotnet restore
+      - run: dotnet build --configuration Release --no-restore -p:PackageVersion=${{ steps.version.outputs.value }} -p:VersionPrefix=${{ steps.version.outputs.value }}
+      - run: dotnet test --configuration Release --no-build
+      - run: dotnet format --verify-no-changes
+      - run: dotnet pack --configuration Release --no-build --output artifacts/packages -p:PackageVersion=${{ steps.version.outputs.value }} -p:VersionPrefix=${{ steps.version.outputs.value }}
+      - run: dotnet restore smoke/clean-install/DebugBundle.Smoke.csproj -p:DebugBundlePackageVersion=${{ steps.version.outputs.value }} --packages artifacts/smoke/nuget-cache --source artifacts/packages --source https://api.nuget.org/v3/index.json
+      - run: dotnet run --project smoke/clean-install/DebugBundle.Smoke.csproj --configuration Release --no-restore -p:DebugBundlePackageVersion=${{ steps.version.outputs.value }}
+
+      - name: NuGet trusted publishing login
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Publish packages
+        shell: bash
+        run: |
+          for package in artifacts/packages/*.nupkg; do
+            dotnet nuget push "$package" \
+              --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" \
+              --source https://api.nuget.org/v3/index.json \
+              --skip-duplicate
+          done
+
+      - name: Published-package smoke
+        shell: bash
+        run: |
+          for attempt in $(seq 1 20); do
+            rm -rf artifacts/smoke-published
+            if dotnet restore smoke/clean-install/DebugBundle.Smoke.csproj \
+              -p:DebugBundlePackageVersion=${{ steps.version.outputs.value }} \
+              --packages artifacts/smoke-published/nuget-cache \
+              --source https://api.nuget.org/v3/index.json; then
+              dotnet run --project smoke/clean-install/DebugBundle.Smoke.csproj \
+                --configuration Release \
+                --no-restore \
+                -p:DebugBundlePackageVersion=${{ steps.version.outputs.value }}
+              exit 0
+            fi
+            sleep 30
+          done
+          exit 1
