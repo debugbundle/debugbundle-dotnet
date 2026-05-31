@@ -197,7 +197,7 @@ public sealed class RelayTests
               "event_id": "evt_browser",
               "event_type": "frontend_exception",
               "sdk_name": "malicious",
-              "sdk_version": "0.1.0",
+              "sdk_version": "1.0.0",
               "project_token": "dbundle_proj_browser",
               "organization_id": "org_browser",
               "service": {
