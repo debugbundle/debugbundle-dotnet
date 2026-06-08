@@ -101,6 +101,9 @@ public sealed class CapturePolicy
     [JsonPropertyName("immediate_client_error_statuses")]
     public List<int> ImmediateClientErrorStatuses { get; set; } = new();
 
+    [JsonPropertyName("immediate_client_error_path_rules")]
+    public List<ImmediateClientErrorPathRule> ImmediateClientErrorPathRules { get; set; } = new();
+
     public static CapturePolicy Minimal()
     {
         return new CapturePolicy
@@ -116,6 +119,18 @@ public sealed class CapturePolicy
     {
         return new CapturePolicy();
     }
+}
+
+public sealed class ImmediateClientErrorPathRule
+{
+    [JsonPropertyName("status_code")]
+    public int StatusCode { get; set; }
+
+    [JsonPropertyName("path_pattern")]
+    public string PathPattern { get; set; } = "/";
+
+    [JsonPropertyName("methods")]
+    public List<string> Methods { get; set; } = new();
 }
 
 public sealed class HttpRemoteConfigFetcher : IRemoteConfigFetcher, IDisposable

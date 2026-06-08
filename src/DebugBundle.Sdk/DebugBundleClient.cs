@@ -125,7 +125,7 @@ public sealed class DebugBundleClient : IDebugBundleClient, IDisposable
             return;
         }
 
-        if (!ShouldCaptureRequestByPolicy(response?.StatusCode ?? 0))
+        if (!ShouldCaptureRequestByPolicy(response?.StatusCode ?? 0, request.Path, request.Method))
         {
             return;
         }
@@ -635,7 +635,7 @@ public sealed class DebugBundleClient : IDebugBundleClient, IDisposable
         };
     }
 
-    private bool ShouldCaptureRequestByPolicy(int statusCode)
+    private bool ShouldCaptureRequestByPolicy(int statusCode, string? requestPath, string? httpMethod)
     {
         var mode = _remoteConfig.CapturePolicy.CaptureRequestEvents;
         if (mode == "all")
@@ -643,7 +643,7 @@ public sealed class DebugBundleClient : IDebugBundleClient, IDisposable
             return true;
         }
 
-        if (IsImmediateRequestFailure(statusCode))
+        if (IsImmediateRequestFailure(statusCode, requestPath, httpMethod))
         {
             return true;
         }
@@ -655,13 +655,13 @@ public sealed class DebugBundleClient : IDebugBundleClient, IDisposable
 
         if (mode == "failures_only")
         {
-            return IsRequestAnomalyCandidate(statusCode);
+            return statusCode >= 500;
         }
 
         return false;
     }
 
-    private bool IsImmediateRequestFailure(int statusCode)
+    private bool IsImmediateRequestFailure(int statusCode, string? requestPath = null, string? httpMethod = null)
     {
         if (statusCode >= 500)
         {
@@ -669,6 +669,11 @@ public sealed class DebugBundleClient : IDebugBundleClient, IDisposable
         }
 
         if (_remoteConfig.CapturePolicy.ImmediateClientErrorStatuses.Contains(statusCode))
+        {
+            return true;
+        }
+
+        if (MatchesImmediateClientErrorPathRule(statusCode, requestPath, httpMethod))
         {
             return true;
         }
@@ -682,14 +687,79 @@ public sealed class DebugBundleClient : IDebugBundleClient, IDisposable
         return preset == "investigative" && statusCode == 409;
     }
 
-    private bool IsRequestAnomalyCandidate(int statusCode)
+    private bool MatchesImmediateClientErrorPathRule(int statusCode, string? requestPath, string? httpMethod)
     {
-        if (_remoteConfig.CapturePolicy.Preset is not ("balanced" or "investigative"))
+        if (statusCode < 400 || statusCode > 499 || string.IsNullOrWhiteSpace(requestPath))
         {
             return false;
         }
 
-        return statusCode is 400 or 401 or 403 or 404 or 409 or 410 or 422;
+        var normalizedPath = NormalizeRequestPath(requestPath!);
+        var normalizedMethod = string.IsNullOrWhiteSpace(httpMethod) ? null : httpMethod!.Trim().ToUpperInvariant();
+        foreach (var rule in _remoteConfig.CapturePolicy.ImmediateClientErrorPathRules)
+        {
+            if (rule.StatusCode != statusCode || string.IsNullOrWhiteSpace(rule.PathPattern))
+            {
+                continue;
+            }
+            if (rule.Methods.Count > 0)
+            {
+                if (rule.Methods.Count > 7)
+                {
+                    continue;
+                }
+                var ruleMethods = rule.Methods
+                    .Select(NormalizeCapturePolicyMethod)
+                    .Where(method => method != null)
+                    .ToList();
+                if (ruleMethods.Count == 0 || normalizedMethod == null || !ruleMethods.Contains(normalizedMethod))
+                {
+                    continue;
+                }
+            }
+            var pathPattern = rule.PathPattern ?? string.Empty;
+            if (pathPattern.EndsWith("*", StringComparison.Ordinal))
+            {
+                if (normalizedPath.StartsWith(pathPattern.Substring(0, pathPattern.Length - 1), StringComparison.Ordinal))
+                {
+                    return true;
+                }
+                continue;
+            }
+            if (string.Equals(normalizedPath, pathPattern, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string? NormalizeCapturePolicyMethod(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value!.Trim().ToUpperInvariant();
+        return normalized is "GET" or "POST" or "PUT" or "PATCH" or "DELETE" or "HEAD" or "OPTIONS" ? normalized : null;
+    }
+
+    private static string NormalizeRequestPath(string value)
+    {
+        if (Uri.TryCreate(value, UriKind.Absolute, out var absolute) && !string.IsNullOrWhiteSpace(absolute.AbsolutePath))
+        {
+            return absolute.AbsolutePath;
+        }
+
+        var queryIndex = value.IndexOf('?');
+        var fragmentIndex = value.IndexOf('#');
+        var end = queryIndex < 0
+            ? (fragmentIndex < 0 ? value.Length : fragmentIndex)
+            : (fragmentIndex < 0 ? queryIndex : Math.Min(queryIndex, fragmentIndex));
+        var path = value.Substring(0, end);
+        return path.StartsWith("/", StringComparison.Ordinal) && path.Length > 0 ? path : "/";
     }
 
     private bool ShouldEmitProbeEventsByPolicy()

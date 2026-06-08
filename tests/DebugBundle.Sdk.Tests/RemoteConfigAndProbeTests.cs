@@ -53,6 +53,95 @@ public sealed class RemoteConfigAndProbeTests
     }
 
     [Fact]
+    public async Task Remote_Config_Promotes_Path_Configured_Client_Error_When_Request_Capture_Is_Off()
+    {
+        var transport = new FakeTransport();
+        var fetcher = new FakeRemoteConfigFetcher();
+        fetcher.Responses.Enqueue(_ => new RemoteConfigFetchResult
+        {
+            Config = new SdkRemoteConfig
+            {
+                CapturePolicy = new CapturePolicy
+                {
+                    Preset = "minimal",
+                    CaptureLogs = "error",
+                    CaptureRequestEvents = "off",
+                    CaptureProbeEvents = "buffer_only",
+                    ImmediateClientErrorPathRules = new List<ImmediateClientErrorPathRule>
+                    {
+                        new()
+                        {
+                            StatusCode = 404,
+                            PathPattern = "/checkout/*",
+                            Methods = new List<string> { "POST" }
+                        }
+                    }
+                }
+            }
+        });
+        var client = DebugBundleClient.Create(new DebugBundleOptions
+        {
+            ProjectToken = "dbundle_proj_test",
+            Service = "checkout-api",
+            Environment = "production",
+            Transport = transport,
+            RemoteConfigFetcher = fetcher,
+            RandomSource = () => 0
+        });
+
+        client.CaptureRequest(new DebugBundleRequestInfo { Method = "POST", Path = "/checkout/cart" }, new DebugBundleResponseInfo { StatusCode = 404 });
+        client.CaptureRequest(new DebugBundleRequestInfo { Method = "GET", Path = "/checkout/cart" }, new DebugBundleResponseInfo { StatusCode = 404 });
+        await client.FlushAsync();
+
+        var requestEvent = transport.Batches.Single().Single(item => item.EventType == "request_event");
+        Assert.Equal("/checkout/cart", requestEvent.Payload["path"]);
+        Assert.Equal(404, requestEvent.Payload["response_status"]);
+    }
+
+    [Fact]
+    public async Task Remote_Config_Ignores_Invalid_Path_Rule_Methods()
+    {
+        var transport = new FakeTransport();
+        var fetcher = new FakeRemoteConfigFetcher();
+        fetcher.Responses.Enqueue(_ => new RemoteConfigFetchResult
+        {
+            Config = new SdkRemoteConfig
+            {
+                CapturePolicy = new CapturePolicy
+                {
+                    Preset = "minimal",
+                    CaptureLogs = "error",
+                    CaptureRequestEvents = "off",
+                    CaptureProbeEvents = "buffer_only",
+                    ImmediateClientErrorPathRules = new List<ImmediateClientErrorPathRule>
+                    {
+                        new()
+                        {
+                            StatusCode = 404,
+                            PathPattern = "/checkout/*",
+                            Methods = new List<string> { "TRACE" }
+                        }
+                    }
+                }
+            }
+        });
+        var client = DebugBundleClient.Create(new DebugBundleOptions
+        {
+            ProjectToken = "dbundle_proj_test",
+            Service = "checkout-api",
+            Environment = "production",
+            Transport = transport,
+            RemoteConfigFetcher = fetcher,
+            RandomSource = () => 0
+        });
+
+        client.CaptureRequest(new DebugBundleRequestInfo { Method = "TRACE", Path = "/checkout/cart" }, new DebugBundleResponseInfo { StatusCode = 404 });
+        await client.FlushAsync();
+
+        Assert.Empty(transport.Batches);
+    }
+
+    [Fact]
     public async Task Remote_Activated_Probe_Emits_Standalone_Event_And_Heavy_Probe()
     {
         var transport = new FakeTransport();
