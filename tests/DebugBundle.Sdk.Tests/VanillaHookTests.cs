@@ -23,7 +23,7 @@ public sealed class VanillaHookTests
         Assert.Equal("wrapped failure", thrown.Message);
         await global::DebugBundle.DebugBundle.FlushAsync();
         var captured = transport.Batches.Single().Single(item => item.EventType == "backend_exception");
-        var context = Assert.IsType<Dictionary<string, object?>>(captured.Payload["context"]);
+        var context = Assert.IsType<Dictionary<string, object?>>(captured.Context);
         Assert.Equal("job_123", context["job_id"]);
     }
 

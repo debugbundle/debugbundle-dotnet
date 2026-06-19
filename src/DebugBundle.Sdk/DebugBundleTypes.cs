@@ -77,6 +77,10 @@ public sealed class DebugBundleEventEnvelope
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, object?>? Correlation { get; set; }
 
+    [JsonPropertyName("context")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, object?>? Context { get; set; }
+
     [JsonPropertyName("payload")]
     public Dictionary<string, object?> Payload { get; set; } = new();
 }
@@ -100,5 +104,5 @@ public sealed class DebugBundleServiceDescriptor
 public static class DebugBundleConstants
 {
     public const string SdkName = "@debugbundle/sdk-dotnet";
-    public const string SdkVersion = "1.1.0";
+    public const string SdkVersion = "1.1.1";
 }

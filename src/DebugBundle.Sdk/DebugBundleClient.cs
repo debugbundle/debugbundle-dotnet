@@ -400,10 +400,7 @@ public sealed class DebugBundleClient : IDebugBundleClient, IDisposable
     {
         var mergedContext = BuildContext(context);
         var correlation = BuildCorrelation(mergedContext, payload);
-        if (mergedContext.Count > 0)
-        {
-            payload["context"] = mergedContext;
-        }
+        var envelopeContext = BuildEnvelopeContext(mergedContext);
 
         return new DebugBundleEventEnvelope
         {
@@ -417,6 +414,7 @@ public sealed class DebugBundleClient : IDebugBundleClient, IDisposable
             },
             OccurredAt = DateTimeOffset.UtcNow.ToString("O"),
             Correlation = correlation.Count == 0 ? null : correlation,
+            Context = envelopeContext.Count == 0 ? null : envelopeContext,
             Payload = payload
         };
     }
@@ -455,6 +453,20 @@ public sealed class DebugBundleClient : IDebugBundleClient, IDisposable
         }
 
         return ToDictionary(_redactor.Redact(result));
+    }
+
+    private static Dictionary<string, object?> BuildEnvelopeContext(IReadOnlyDictionary<string, object?> context)
+    {
+        var result = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (var item in context)
+        {
+            if (item.Key is "trace_id" or "request_id" or "session_id" or "user_id_hash")
+            {
+                continue;
+            }
+            result[item.Key] = item.Value;
+        }
+        return result;
     }
 
     private static Dictionary<string, object?> BuildCorrelation(IReadOnlyDictionary<string, object?> context, IReadOnlyDictionary<string, object?> payload)
