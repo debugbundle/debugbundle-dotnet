@@ -13,6 +13,31 @@ namespace DebugBundle.AspNetCore.Tests;
 public sealed class RelayTests
 {
     [Fact]
+    public async Task Relay_Preserves_Analytics_Correlation_Fields()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "debugbundle-dotnet-relay-analytics", Guid.NewGuid().ToString("N"));
+        using var server = RelayServer(new DebugBundleOptions
+        {
+            ProjectToken = "dbundle_proj_server",
+            ProjectMode = DebugBundleProjectMode.LocalOnly,
+            LocalEventsDir = root,
+            Service = "checkout-web",
+            Environment = "production"
+        });
+        var client = server.CreateClient();
+        client.DefaultRequestHeaders.TryAddWithoutValidation("Origin", "http://localhost");
+
+        var response = await client.PostAsync("/debugbundle/browser", new StringContent(AnalyticsBatch(), Encoding.UTF8, "application/json"));
+
+        Assert.Equal(System.Net.HttpStatusCode.Accepted, response.StatusCode);
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(Assert.Single(Directory.EnumerateFiles(root, "*.events.json"))));
+        var correlation = document.RootElement[0].GetProperty("correlation");
+        Assert.Equal("session_analytics", correlation.GetProperty("session_id").GetString());
+        Assert.Equal(JsonValueKind.Null, correlation.GetProperty("user_id_hash").ValueKind);
+        Assert.Equal("deploy_analytics", correlation.GetProperty("deploy_id").GetString());
+    }
+
+    [Fact]
     public async Task Relay_Writes_Local_File_And_Strips_Credentials()
     {
         var root = Path.Combine(Path.GetTempPath(), "debugbundle-dotnet-relay", Guid.NewGuid().ToString("N"));
@@ -220,6 +245,31 @@ public sealed class RelayTests
               }
             }
           ]
+        }
+        """;
+    }
+
+    private static string AnalyticsBatch()
+    {
+        return """
+        {
+          "batch": [{
+            "schema_version": "2026-07-analytics-01",
+            "event_id": "00000000-0000-4000-8000-000000000405",
+            "event_type": "analytics_event",
+            "sdk_name": "spoofed",
+            "sdk_version": "1.5.0",
+            "service": { "name": "checkout-web", "runtime": "browser", "environment": "production" },
+            "occurred_at": "2026-07-16T09:00:00.000Z",
+            "correlation": {
+              "session_id": "session_analytics",
+              "visitor_id_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "user_id_hash": null,
+              "trace_id": "trace_analytics",
+              "deploy_id": "deploy_analytics"
+            },
+            "payload": { "kind": "page_view", "privacy": { "mode": "standard", "consent_granted": true } }
+          }]
         }
         """;
     }

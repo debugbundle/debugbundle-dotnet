@@ -15,7 +15,8 @@ public static class DebugBundleRelayHandler
         "error_suppressed",
         "frontend_breadcrumb",
         "request_event",
-        "probe_event"
+        "probe_event",
+        "analytics_event"
     };
 
     private static readonly RelayRateLimiter RateLimiter = new();
@@ -226,7 +227,7 @@ public static class DebugBundleRelayHandler
 
         if (candidate.TryGetProperty("correlation", out var correlationElement) && correlationElement.ValueKind == JsonValueKind.Object)
         {
-            var correlation = KeepCorrelationFields(correlationElement);
+            var correlation = KeepCorrelationFields(correlationElement, eventType);
             envelope.Correlation = correlation.Count == 0 ? null : correlation;
         }
 
@@ -289,14 +290,25 @@ public static class DebugBundleRelayHandler
             : null;
     }
 
-    private static Dictionary<string, object?> KeepCorrelationFields(JsonElement correlationElement)
+    private static Dictionary<string, object?> KeepCorrelationFields(JsonElement correlationElement, string eventType)
     {
         var kept = new Dictionary<string, object?>(StringComparer.Ordinal);
-        foreach (var key in new[] { "trace_id", "request_id", "session_id", "user_id_hash" })
+        var keys = eventType == "analytics_event"
+            ? new[] { "session_id", "visitor_id_hash", "user_id_hash", "trace_id", "deploy_id" }
+            : new[] { "trace_id", "request_id", "session_id", "user_id_hash" };
+        foreach (var key in keys)
         {
-            if (correlationElement.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String)
+            if (!correlationElement.TryGetProperty(key, out var value))
+            {
+                continue;
+            }
+            if (value.ValueKind == JsonValueKind.String)
             {
                 kept[key] = value.GetString();
+            }
+            else if (value.ValueKind == JsonValueKind.Null)
+            {
+                kept[key] = null;
             }
         }
 
