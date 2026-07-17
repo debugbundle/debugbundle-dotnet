@@ -1,6 +1,6 @@
 DOTNET ?= dotnet
 CONFIGURATION ?= Release
-VERSION ?= 1.1.1
+VERSION ?= 1.1.2
 SMOKE_TFM ?= net8.0
 
 .PHONY: restore
