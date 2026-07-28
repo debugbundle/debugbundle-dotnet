@@ -54,4 +54,61 @@ public sealed class WorkerTests
 
         Assert.Equal(1, fakeClient.FlushCount);
     }
+
+    [Fact]
+    public async Task AddDebugBundle_Registers_Configured_Client_And_Flushes_When_Stopping()
+    {
+        var lifetime = new FakeHostApplicationLifetime();
+        var services = new ServiceCollection();
+        services.AddSingleton<IHostApplicationLifetime>(lifetime);
+        services.AddDebugBundle(options =>
+        {
+            options.Enabled = false;
+            options.ProjectToken = "dbundle_proj_test";
+            options.Service = "worker-test";
+            options.Environment = "test";
+        });
+
+        using var provider = services.BuildServiceProvider();
+        Assert.IsType<DebugBundleClient>(provider.GetRequiredService<IDebugBundleClient>());
+        var hostedService = Assert.Single(provider.GetServices<IHostedService>());
+
+        await hostedService.StartAsync(CancellationToken.None);
+        lifetime.StopApplication();
+        await hostedService.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task CaptureOperationAsync_Covers_Success_Null_And_Generic_Paths()
+    {
+        var client = new FakeClient();
+        await client.CaptureOperationAsync("success", (context, _) =>
+        {
+            context.Set("", "ignored");
+            context.Set("temporary", "value");
+            context.Set("temporary", null);
+            Assert.Equal("success", context.OperationName);
+            Assert.DoesNotContain("temporary", context.Snapshot());
+            return Task.CompletedTask;
+        });
+        await client.CaptureOperationAsync("null", null!);
+        Assert.Equal(42, await client.CaptureOperationAsync("generic", (_, _) => Task.FromResult(42)));
+        Assert.Equal(0, await client.CaptureOperationAsync<int>("generic-null", null!));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            client.CaptureOperationAsync<int>(
+                "generic-failure",
+                (_, _) => throw new InvalidOperationException("failed")));
+
+        Assert.Single(client.Exceptions);
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            DebugBundleWorkerClientExtensions.CaptureOperationAsync(
+                null!,
+                "null-client",
+                (_, _) => Task.CompletedTask));
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            DebugBundleWorkerClientExtensions.CaptureOperationAsync<int>(
+                null!,
+                "null-client",
+                (_, _) => Task.FromResult(1)));
+    }
 }

@@ -5,11 +5,16 @@ namespace DebugBundle.Hangfire.Tests;
 internal sealed class FakeClient : IDebugBundleClient
 {
     public List<(Exception Exception, IDictionary<string, object?>? Context)> Exceptions { get; } = new();
+    public bool ThrowOnCapture { get; set; }
     public DebugBundleStatus Status { get; } = DebugBundleStatus.Healthy;
     public DateTimeOffset? LastEventAt { get; }
 
     public void CaptureException(Exception? exception, IDictionary<string, object?>? context = null)
     {
+        if (ThrowOnCapture)
+        {
+            throw new InvalidOperationException("capture failed");
+        }
         if (exception != null)
         {
             Exceptions.Add((exception, context));

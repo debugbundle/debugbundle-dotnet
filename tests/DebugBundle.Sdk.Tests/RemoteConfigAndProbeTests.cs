@@ -249,6 +249,9 @@ public sealed class RemoteConfigAndProbeTests
         });
 
         client.Probe("checkout.cart", new { Count = 2 });
+        client.Probe("checkout.list", new[] { "first", "second" });
+        client.Probe("checkout.scalar", 42);
+        client.Probe("checkout.null", (object?)null);
         client.CaptureException(new InvalidOperationException("failed"));
         await client.FlushAsync();
 
@@ -256,8 +259,57 @@ public sealed class RemoteConfigAndProbeTests
         var probeData = Assert.IsType<Dictionary<string, object?>>(exception.Payload["probe_data"]);
         Assert.Equal(1, probeData["version"]);
         var items = Assert.IsAssignableFrom<IEnumerable<object?>>(probeData["items"]);
-        var item = Assert.IsType<Dictionary<string, object?>>(items.Single());
-        Assert.Equal("checkout.cart", item["label"]);
+        var probeItems = items.Cast<Dictionary<string, object?>>().ToArray();
+        Assert.Equal(4, probeItems.Length);
+        Assert.Equal("checkout.cart", probeItems[0]["label"]);
+        var listData = Assert.IsType<Dictionary<string, object?>>(probeItems[1]["data"]);
+        var listValue = Assert.IsAssignableFrom<IEnumerable<object?>>(listData["value"]);
+        Assert.Equal(new object?[] { "first", "second" }, listValue.ToArray());
+        var scalarData = Assert.IsType<Dictionary<string, object?>>(probeItems[2]["data"]);
+        Assert.Equal(42, scalarData["value"]);
+        var nullData = Assert.IsType<Dictionary<string, object?>>(probeItems[3]["data"]);
+        Assert.Null(nullData["value"]);
+    }
+
+    [Fact]
+    public void Trigger_Token_Validation_Rejects_Invalid_Inputs_And_Supports_Legacy_Labels()
+    {
+        var now = DateTimeOffset.UtcNow;
+        Assert.Empty(RemoteProbeTokenValidator.Validate(null, "key", "service", "test", now));
+        Assert.Empty(RemoteProbeTokenValidator.Validate("invalid", "key", "service", "test", now));
+        Assert.Empty(RemoteProbeTokenValidator.Validate("dbundle_probe_invalid", "key", "service", "test", now));
+        Assert.Empty(RemoteProbeTokenValidator.Validate("dbundle_probe_bad.bad", "key", "service", "test", now));
+
+        var expired = BuildTriggerToken("key", new
+        {
+            labels = new[] { "checkout.*" },
+            service = "service",
+            environment = "test",
+            trigger_expires_at = now.AddSeconds(-1)
+        });
+        Assert.Empty(RemoteProbeTokenValidator.Validate(expired, "key", "service", "test", now));
+
+        var wrongScope = BuildTriggerToken("key", new
+        {
+            labels = new[] { "checkout.*" },
+            service = "other",
+            environment = "test",
+            trigger_expires_at = now.AddMinutes(1)
+        });
+        Assert.Empty(RemoteProbeTokenValidator.Validate(wrongScope, "key", "service", "test", now));
+
+        var wildcard = BuildTriggerToken("key", new
+        {
+            activation_id = "legacy",
+            labels = new[] { "", "checkout.*" },
+            service = "*",
+            environment = "*",
+            trigger_expires_at = now.AddMinutes(1)
+        });
+        var directive = Assert.Single(
+            RemoteProbeTokenValidator.Validate(wildcard, "key", "service", "test", now));
+        Assert.Equal("checkout.*", directive.LabelPattern);
+        Assert.Equal("legacy", directive.ActivationId);
     }
 
     private static string BuildTriggerToken(string signingKey, object payload)

@@ -26,6 +26,7 @@ public sealed class DebugBundleOptions
     public IEventTransport? Transport { get; set; }
     public IRemoteConfigFetcher? RemoteConfigFetcher { get; set; }
     public Func<double>? RandomSource { get; set; }
+    public Func<DebugBundleEventEnvelope, DebugBundleEventEnvelope?>? BeforeSend { get; set; }
 
     internal ResolvedDebugBundleOptions Resolve()
     {
@@ -67,7 +68,8 @@ public sealed class DebugBundleOptions
             RedactFields,
             Transport,
             RemoteConfigFetcher,
-            RandomSource ?? new Random().NextDouble);
+            RandomSource ?? new Random().NextDouble,
+            BeforeSend);
     }
 
     private static string FirstNonWhiteSpace(params string?[] values)
@@ -117,7 +119,8 @@ internal sealed class ResolvedDebugBundleOptions
         IReadOnlyCollection<string> redactFields,
         IEventTransport? transport,
         IRemoteConfigFetcher? remoteConfigFetcher,
-        Func<double> randomSource)
+        Func<double> randomSource,
+        Func<DebugBundleEventEnvelope, DebugBundleEventEnvelope?>? beforeSend)
     {
         ProjectToken = projectToken;
         Enabled = enabled;
@@ -140,6 +143,7 @@ internal sealed class ResolvedDebugBundleOptions
         Transport = transport;
         RemoteConfigFetcher = remoteConfigFetcher;
         RandomSource = randomSource;
+        BeforeSend = beforeSend;
     }
 
     public string ProjectToken { get; }
@@ -163,4 +167,5 @@ internal sealed class ResolvedDebugBundleOptions
     public IEventTransport? Transport { get; }
     public IRemoteConfigFetcher? RemoteConfigFetcher { get; }
     public Func<double> RandomSource { get; }
+    public Func<DebugBundleEventEnvelope, DebugBundleEventEnvelope?>? BeforeSend { get; }
 }

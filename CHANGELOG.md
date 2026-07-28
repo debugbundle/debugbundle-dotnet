@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-28
+
+### Added
+
+- Added the universal `BeforeSend` event hook and canonical object wrapping for scalar/list probe values.
+- Added real-HTTP clean-package delivery verification with canonical ingestion acknowledgement assertions.
+- Added a canonical merged Cobertura gate that enforces at least 80% line coverage for every production source file, with behavior coverage for the static facade, middleware and registration extensions, worker lifecycle, gRPC streaming paths, relay validation, and logging adapters.
+
+### Fixed
+
+- Reconcile connected ingestion acknowledgements per event, retaining only retryable rejections and withholding `LastEventAt` when no event was accepted.
+- Consolidated framework logging adapters on the shared static client facade while preserving their public registration and fail-open behavior.
+
 ## [1.2.0] - 2026-07-17
 
 ### Added

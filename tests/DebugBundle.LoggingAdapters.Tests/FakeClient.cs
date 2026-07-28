@@ -6,14 +6,25 @@ internal sealed class FakeClient : IDebugBundleClient
 {
     public List<(string? Message, DebugBundleLogLevel Level, IDictionary<string, object?>? Context)> Logs { get; } = new();
     public List<(Exception Exception, IDictionary<string, object?>? Context)> Exceptions { get; } = new();
+    public bool ThrowOnCapture { get; set; }
     public DebugBundleStatus Status { get; } = DebugBundleStatus.Healthy;
     public DateTimeOffset? LastEventAt { get; }
 
     public void CaptureLog(string? message, DebugBundleLogLevel level = DebugBundleLogLevel.Information, IDictionary<string, object?>? context = null)
-        => Logs.Add((message, level, context));
+    {
+        if (ThrowOnCapture)
+        {
+            throw new InvalidOperationException("capture failed");
+        }
+        Logs.Add((message, level, context));
+    }
 
     public void CaptureException(Exception? exception, IDictionary<string, object?>? context = null)
     {
+        if (ThrowOnCapture)
+        {
+            throw new InvalidOperationException("capture failed");
+        }
         if (exception != null)
         {
             Exceptions.Add((exception, context));

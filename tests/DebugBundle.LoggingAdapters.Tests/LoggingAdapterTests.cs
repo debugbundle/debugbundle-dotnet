@@ -78,6 +78,68 @@ public sealed class LoggingAdapterTests
         Assert.Equal("log4net", log.Context!["provider"]);
     }
 
+    [Fact]
+    public void Adapters_Map_All_Levels_And_Swallow_Client_Failures()
+    {
+        var serilogClient = new FakeClient();
+        var serilog = new DebugBundleSink(serilogClient);
+        foreach (var level in Enum.GetValues<LogEventLevel>())
+        {
+            serilog.Emit(new LogEvent(
+                DateTimeOffset.UtcNow,
+                level,
+                null,
+                new MessageTemplate("level", new MessageTemplateToken[] { new TextToken("level") }),
+                Array.Empty<LogEventProperty>()));
+        }
+        serilog.Emit(null!);
+        new DebugBundleSink(new FakeClient { ThrowOnCapture = true }).Emit(new LogEvent(
+            DateTimeOffset.UtcNow,
+            LogEventLevel.Error,
+            new InvalidOperationException("failed"),
+            new MessageTemplate("failed", new MessageTemplateToken[] { new TextToken("failed") }),
+            Array.Empty<LogEventProperty>()));
+        Assert.Equal(6, serilogClient.Logs.Count);
+
+        var nlogClient = new FakeClient();
+        var nlog = new TestNLogTarget(nlogClient);
+        foreach (var level in new[] { LogLevel.Trace, LogLevel.Debug, LogLevel.Info, LogLevel.Warn, LogLevel.Error, LogLevel.Fatal })
+        {
+            nlog.WriteForTest(new LogEventInfo(level, "levels", "level")
+            {
+                Exception = level == LogLevel.Error ? new InvalidOperationException("failed") : null
+            });
+        }
+        nlog.WriteForTest(null!);
+        new TestNLogTarget(new FakeClient { ThrowOnCapture = true })
+            .WriteForTest(new LogEventInfo(LogLevel.Error, "levels", "failed"));
+        Assert.Equal(6, nlogClient.Logs.Count);
+        Assert.Single(nlogClient.Exceptions);
+
+        var log4NetClient = new FakeClient();
+        var appender = new DebugBundleAppender(log4NetClient);
+        foreach (var level in new[] { Level.Trace, Level.Debug, Level.Info, Level.Warn, Level.Error, Level.Fatal })
+        {
+            appender.DoAppend(new LoggingEvent(
+                typeof(LoggingAdapterTests),
+                log4net.LogManager.GetRepository(),
+                "levels",
+                level,
+                "level",
+                level == Level.Error ? new InvalidOperationException("failed") : null));
+        }
+        appender.DoAppend((LoggingEvent)null!);
+        new DebugBundleAppender(new FakeClient { ThrowOnCapture = true }).DoAppend(new LoggingEvent(
+            typeof(LoggingAdapterTests),
+            log4net.LogManager.GetRepository(),
+            "levels",
+            Level.Error,
+            "failed",
+            null));
+        Assert.Equal(6, log4NetClient.Logs.Count);
+        Assert.Single(log4NetClient.Exceptions);
+    }
+
     private sealed class TestNLogTarget : DebugBundleTarget
     {
         public TestNLogTarget(IDebugBundleClient client)

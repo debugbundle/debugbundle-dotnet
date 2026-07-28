@@ -50,8 +50,9 @@ internal sealed class ProbeBuffer
             .Select(entry => new Dictionary<string, object?>
             {
                 ["label"] = entry.Label,
-                ["occurred_at"] = entry.OccurredAt.ToString("O"),
-                ["data"] = entry.Data
+                ["timestamp"] = entry.OccurredAt.ToString("O"),
+                ["data"] = entry.Data,
+                ["activation_id"] = null
             })
             .ToArray();
     }

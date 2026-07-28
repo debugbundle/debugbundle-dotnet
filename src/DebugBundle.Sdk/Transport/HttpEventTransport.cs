@@ -30,10 +30,12 @@ public sealed class HttpEventTransport : IEventTransport, IDisposable
         httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", request.ProjectToken);
 
         using var response = await _httpClient.SendAsync(httpRequest, cancellationToken).ConfigureAwait(false);
+        var responseBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
         return new EventTransportResult
         {
             StatusCode = (int)response.StatusCode,
-            RetryAfter = BoundedRetryAfter(response)
+            RetryAfter = BoundedRetryAfter(response),
+            Body = responseBody
         };
     }
 

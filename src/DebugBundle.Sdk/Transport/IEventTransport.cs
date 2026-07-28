@@ -16,4 +16,5 @@ public sealed class EventTransportResult
     public int StatusCode { get; set; }
     public TimeSpan? RetryAfter { get; set; }
     public string? WrittenFilePath { get; set; }
+    public string? Body { get; set; }
 }

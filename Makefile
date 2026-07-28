@@ -1,6 +1,6 @@
 DOTNET ?= dotnet
 CONFIGURATION ?= Release
-VERSION ?= 1.2.0
+VERSION ?= 1.3.0
 SMOKE_TFM ?= net8.0
 
 .PHONY: restore
@@ -14,6 +14,12 @@ build:
 .PHONY: test
 test:
 	$(DOTNET) test --configuration $(CONFIGURATION) --no-build
+
+.PHONY: coverage
+coverage:
+	rm -rf artifacts/coverage
+	$(DOTNET) test --configuration $(CONFIGURATION) --no-build --collect:"XPlat Code Coverage" --results-directory artifacts/coverage
+	$(DOTNET) run --project tools/DebugBundle.CoverageGate/DebugBundle.CoverageGate.csproj --configuration $(CONFIGURATION) -- artifacts/coverage 80
 
 .PHONY: format
 format:
@@ -38,4 +44,4 @@ smoke-published:
 	$(DOTNET) run --project smoke/clean-install/DebugBundle.Smoke.csproj --configuration $(CONFIGURATION) --no-restore -p:DebugBundlePackageVersion=$(VERSION) -p:DebugBundleSmokeTargetFramework=$(SMOKE_TFM)
 
 .PHONY: verify
-verify: restore build test format pack smoke
+verify: restore build test coverage format pack smoke

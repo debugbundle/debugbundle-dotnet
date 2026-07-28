@@ -52,6 +52,29 @@ public sealed class HangfireFilterTests
         Assert.Empty(client.Exceptions);
     }
 
+    [Fact]
+    public void Filter_Is_Fail_Open_For_Null_Contexts_And_Client_Failures()
+    {
+        var filter = new DebugBundleHangfireFilter(new FakeClient { ThrowOnCapture = true });
+        filter.OnPerforming(null!);
+        filter.OnPerformed(null!);
+
+        var job = Job.FromExpression(() => SampleJobs.SampleJob("value", 1));
+        var backgroundJob = new BackgroundJob("job-throw", job, DateTime.UtcNow);
+        var perform = new PerformContext(
+            new StubJobStorage(),
+            new StubStorageConnection(),
+            backgroundJob,
+            new StubCancellationToken());
+        var performed = new PerformedContext(
+            new PerformingContext(perform),
+            null,
+            false,
+            new InvalidOperationException("failed"));
+
+        filter.OnPerformed(performed);
+    }
+
     public static class SampleJobs
     {
         public static void SampleJob(string customerId, int attempt)

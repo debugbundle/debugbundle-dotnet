@@ -18,12 +18,20 @@ jobs:
       SMOKE_TFM: ${{ matrix.dotnet == '10.0.x' && 'net10.0' || 'net8.0' }}
     steps:
       - uses: actions/checkout@v6
+      - name: Install .NET 8 runtime for net8.0 test projects
+        if: matrix.dotnet == '10.0.x'
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "8.0.x"
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ matrix.dotnet }}
       - run: dotnet restore
       - run: dotnet build --configuration Release --no-restore
-      - run: dotnet test --configuration Release --no-build --collect:"XPlat Code Coverage"
+      - run: dotnet test --configuration Release --no-build --collect:"XPlat Code Coverage" --results-directory artifacts/coverage
+      - name: Enforce per-file coverage
+        if: matrix.os == 'ubuntu-latest' && matrix.dotnet == '8.0.x'
+        run: dotnet run --project tools/DebugBundle.CoverageGate/DebugBundle.CoverageGate.csproj --configuration Release -- artifacts/coverage 80
       - run: dotnet format --verify-no-changes
       - run: dotnet pack --configuration Release --no-build --output artifacts/packages
       - name: Write smoke NuGet config

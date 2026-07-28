@@ -1,11 +1,10 @@
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using DebugBundle.Redaction;
 using DebugBundle.Transport;
 
 namespace DebugBundle;
 
-public sealed class DebugBundleClient : IDebugBundleClient, IDisposable
+public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
 {
     private readonly object _sync = new();
     private readonly ResolvedDebugBundleOptions _options;
@@ -67,17 +66,33 @@ public sealed class DebugBundleClient : IDebugBundleClient, IDisposable
 
         var payload = new Dictionary<string, object?>
         {
-            ["name"] = exception.GetType().FullName,
-            ["message"] = exception.Message,
+            ["name"] = exception.GetType().FullName ?? exception.GetType().Name,
+            ["message"] = string.IsNullOrWhiteSpace(exception.Message)
+                ? exception.GetType().Name
+                : exception.Message,
             ["handled"] = true,
             ["stack"] = exception.ToString(),
-            ["hresult"] = exception.HResult,
+            ["request"] = new Dictionary<string, object?>
+            {
+                ["method"] = "UNKNOWN",
+                ["path"] = "/",
+                ["query"] = new Dictionary<string, object?>(),
+                ["headers"] = new Dictionary<string, object?>()
+            },
+            ["response"] = new Dictionary<string, object?>
+            {
+                ["status_code"] = 0
+            },
             ["runtime"] = BuildRuntimeFacts()
         };
 
+        var exceptionContext = context == null
+            ? new Dictionary<string, object?>()
+            : new Dictionary<string, object?>(context, StringComparer.Ordinal);
+        exceptionContext["exception_hresult"] = exception.HResult;
         if (exception.InnerException != null)
         {
-            payload["inner_exception"] = new Dictionary<string, object?>
+            exceptionContext["inner_exception"] = new Dictionary<string, object?>
             {
                 ["name"] = exception.InnerException.GetType().FullName,
                 ["message"] = exception.InnerException.Message,
@@ -98,14 +113,14 @@ public sealed class DebugBundleClient : IDebugBundleClient, IDisposable
             }
         }
 
-        Capture("backend_exception", payload, context);
+        Capture("backend_exception", payload, exceptionContext);
     }
 
     public void CaptureError(Exception? exception, IDictionary<string, object?>? context = null) => CaptureException(exception, context);
 
     public void CaptureLog(string? message, DebugBundleLogLevel level = DebugBundleLogLevel.Information, IDictionary<string, object?>? context = null)
     {
-        if (string.IsNullOrWhiteSpace(message) || level < _options.LogLevel || !ShouldCaptureLogByPolicy(level))
+        if (string.IsNullOrWhiteSpace(message))
         {
             return;
         }
@@ -125,41 +140,43 @@ public sealed class DebugBundleClient : IDebugBundleClient, IDisposable
             return;
         }
 
-        if (!ShouldCaptureRequestByPolicy(response?.StatusCode ?? 0, request.Path, request.Method))
-        {
-            return;
-        }
-
         var payload = new Dictionary<string, object?>
         {
-            ["method"] = request.Method,
-            ["path"] = request.Path,
+            ["method"] = string.IsNullOrWhiteSpace(request.Method) ? "UNKNOWN" : request.Method,
+            ["path"] = string.IsNullOrWhiteSpace(request.Path) ? "/" : request.Path,
             ["query"] = request.Query,
             ["headers"] = FilterHeaders(request.Headers),
-            ["response_status"] = response?.StatusCode ?? 0,
-            ["duration_ms"] = response == null ? 0 : (long)response.Duration.TotalMilliseconds
+            ["response_status"] = Math.Max(0, response?.StatusCode ?? 0),
+            ["duration_ms"] = response == null ? 0 : Math.Max(0, (long)response.Duration.TotalMilliseconds)
         };
 
         if (!string.IsNullOrWhiteSpace(request.RouteTemplate))
         {
             payload["route_template"] = request.RouteTemplate;
         }
+        if (response != null)
+        {
+            payload["response_headers"] = FilterHeaders(response.Headers);
+        }
 
+        var requestContext = context == null
+            ? new Dictionary<string, object?>()
+            : new Dictionary<string, object?>(context, StringComparer.Ordinal);
         if (request.Headers.TryGetValue("X-DebugBundle-Trace-Id", out var traceId) && !string.IsNullOrWhiteSpace(traceId))
         {
-            payload["trace_id"] = traceId;
+            requestContext["trace_id"] = traceId;
         }
 
         if (request.Headers.TryGetValue("X-Request-ID", out var requestId) && !string.IsNullOrWhiteSpace(requestId))
         {
-            payload["request_id"] = requestId;
+            requestContext["request_id"] = requestId;
         }
         else if (request.Headers.TryGetValue("X-Correlation-ID", out var correlationId) && !string.IsNullOrWhiteSpace(correlationId))
         {
-            payload["request_id"] = correlationId;
+            requestContext["request_id"] = correlationId;
         }
 
-        Capture("request_event", payload, context);
+        Capture("request_event", payload, requestContext);
     }
 
     public void CaptureMessage(string? message, DebugBundleLogLevel level = DebugBundleLogLevel.Information, IDictionary<string, object?>? context = null)
@@ -270,15 +287,19 @@ public sealed class DebugBundleClient : IDebugBundleClient, IDisposable
 
             foreach (var aggregate in _suppression.DrainAggregates(DateTimeOffset.UtcNow))
             {
-                batch.Add(BuildEnvelope("error_suppressed", new Dictionary<string, object?>
+                var aggregateEnvelope = BuildEnvelope("error_suppressed", new Dictionary<string, object?>
                 {
                     ["fingerprint"] = aggregate.Fingerprint,
                     ["suppressed_count"] = aggregate.SuppressedCount,
                     ["first_seen"] = aggregate.FirstSeen.ToString("O"),
                     ["last_seen"] = aggregate.LastSeen.ToString("O"),
-                    ["window_seconds"] = aggregate.WindowSeconds,
-                    ["loop_mode"] = aggregate.LoopMode
-                }, null));
+                    ["window_seconds"] = aggregate.WindowSeconds
+                }, null);
+                var preparedAggregate = BeforeSendProcessor.Apply(aggregateEnvelope, _options.BeforeSend);
+                if (preparedAggregate != null)
+                {
+                    batch.Add(preparedAggregate);
+                }
             }
 
             if (batch.Count == 0)
@@ -308,6 +329,47 @@ public sealed class DebugBundleClient : IDebugBundleClient, IDisposable
                 {
                     _failures = 0;
                     Status = DebugBundleStatus.Healthy;
+                    return;
+                }
+
+                var acknowledgement = IngestionAcknowledgement.Decide(response.Body, batch.Count);
+                if (acknowledgement.Kind == IngestionAcknowledgementKind.ProtocolFailure)
+                {
+                    _buffer.InsertRange(0, batch);
+                    _failures++;
+                    Status = DebugBundleStatus.Degraded;
+                    _retryUntil = DateTimeOffset.UtcNow + (response.RetryAfter ?? DefaultBackoff(_failures));
+                    return;
+                }
+
+                if (acknowledgement.Kind == IngestionAcknowledgementKind.Acknowledged)
+                {
+                    var retryableEvents = batch
+                        .Where((_, index) => acknowledgement.RetryableIndices.Contains(index))
+                        .ToList();
+                    if (retryableEvents.Count > 0)
+                    {
+                        _buffer.InsertRange(0, retryableEvents);
+                    }
+
+                    if (acknowledgement.Accepted > 0)
+                    {
+                        LastEventAt = DateTimeOffset.UtcNow;
+                    }
+
+                    if (retryableEvents.Count > 0)
+                    {
+                        _failures++;
+                        Status = DebugBundleStatus.Degraded;
+                        _retryUntil = DateTimeOffset.UtcNow + (response.RetryAfter ?? DefaultBackoff(_failures));
+                        return;
+                    }
+
+                    _failures = 0;
+                    Status = acknowledgement.Accepted > 0
+                        ? DebugBundleStatus.Healthy
+                        : DebugBundleStatus.Disconnected;
+                    _retryUntil = null;
                     return;
                 }
 
@@ -358,19 +420,28 @@ public sealed class DebugBundleClient : IDebugBundleClient, IDisposable
     {
         try
         {
-            if (!_options.Enabled || _transport == null || _options.RandomSource() > _options.SampleRate)
+            if (!_options.Enabled || _transport == null)
             {
                 return;
             }
 
             var redacted = ToDictionary(_redactor.Redact(payload));
-            var fingerprint = SuppressionTracker.Fingerprint(eventType, redacted);
-            if (eventType != "probe_event" && !_suppression.ShouldCapture(fingerprint, DateTimeOffset.UtcNow))
+            var envelope = BeforeSendProcessor.Apply(
+                BuildEnvelope(eventType, redacted, context),
+                _options.BeforeSend);
+            if (envelope == null ||
+                !ShouldCapturePreparedEvent(envelope) ||
+                _options.RandomSource() > _options.SampleRate)
             {
                 return;
             }
 
-            var envelope = BuildEnvelope(eventType, redacted, context);
+            var fingerprint = SuppressionTracker.Fingerprint(envelope.EventType, envelope.Payload);
+            if (envelope.EventType != "probe_event" &&
+                !_suppression.ShouldCapture(fingerprint, DateTimeOffset.UtcNow))
+            {
+                return;
+            }
 
             lock (_sync)
             {
@@ -493,145 +564,6 @@ public sealed class DebugBundleClient : IDebugBundleClient, IDisposable
                 correlation[key] = payloadValue;
             }
         }
-    }
-
-    private void RecordProbe(string label, object? data, IReadOnlyList<ProbeDirective> activations)
-    {
-        if (string.IsNullOrWhiteSpace(label))
-        {
-            return;
-        }
-
-        var redacted = _redactor.Redact(data);
-        SdkRemoteConfig config;
-        lock (_sync)
-        {
-            config = _remoteConfig;
-            if (!config.ProbesEnabled)
-            {
-                return;
-            }
-
-            _probes.Record(label, redacted, DateTimeOffset.UtcNow);
-        }
-
-        if (!config.RemoteProbesEnabled || !ShouldEmitProbeEventsByPolicy())
-        {
-            return;
-        }
-
-        foreach (var activation in activations)
-        {
-            Capture("probe_event", new Dictionary<string, object?>
-            {
-                ["label"] = label,
-                ["data"] = redacted,
-                ["activation_id"] = activation.ActivationId,
-                ["probe_label_pattern"] = activation.LabelPattern
-            });
-        }
-    }
-
-    private IReadOnlyList<Dictionary<string, object?>> SnapshotProbes()
-    {
-        lock (_sync)
-        {
-            return _probes.Snapshot();
-        }
-    }
-
-    private void ScheduleFlushLocked()
-    {
-        _flushTimer ??= new Timer(_ => _ = FlushAsync(), null, _options.FlushInterval, Timeout.InfiniteTimeSpan);
-    }
-
-    private async Task RefreshRemoteConfigAsync(CancellationToken cancellationToken)
-    {
-        if (_remoteConfigFetcher == null || string.IsNullOrWhiteSpace(_options.ProjectToken))
-        {
-            return;
-        }
-
-        var result = await _remoteConfigFetcher.FetchAsync(new RemoteConfigFetchRequest
-        {
-            Endpoint = _options.Endpoint,
-            ProjectToken = _options.ProjectToken,
-            Service = _options.Service,
-            Environment = _options.Environment,
-            ETag = _remoteConfigETag
-        }, cancellationToken).ConfigureAwait(false);
-
-        lock (_sync)
-        {
-            if (!result.NotModified)
-            {
-                _remoteConfig = result.Config ?? SdkRemoteConfig.Balanced();
-                _remoteConfigETag = result.ETag;
-            }
-
-            ScheduleRemoteConfigRefreshLocked();
-        }
-    }
-
-    private void ScheduleRemoteConfigRefreshLocked()
-    {
-        _remoteConfigTimer?.Dispose();
-        _remoteConfigTimer = null;
-        if (_disposed || !_remoteConfig.RemoteProbesEnabled)
-        {
-            return;
-        }
-
-        var interval = _remoteConfig.PollIntervalMs is > 0
-            ? TimeSpan.FromMilliseconds(_remoteConfig.PollIntervalMs.Value)
-            : _options.ProbesPollInterval;
-        if (HasActiveRemoteProbe(DateTimeOffset.UtcNow) && interval > TimeSpan.FromSeconds(15))
-        {
-            interval = TimeSpan.FromSeconds(15);
-        }
-
-        _remoteConfigTimer = new Timer(_ => _ = RefreshRemoteConfigAsync(CancellationToken.None), null, interval, Timeout.InfiniteTimeSpan);
-    }
-
-    private static TimeSpan DefaultBackoff(int failures)
-    {
-        var seconds = Math.Min(300, Math.Pow(2, Math.Min(failures, 8)));
-        return TimeSpan.FromSeconds(seconds);
-    }
-
-    private static IEventTransport? ResolveTransport(ResolvedDebugBundleOptions options)
-    {
-        if (!options.Enabled)
-        {
-            return null;
-        }
-
-        if (options.Transport != null)
-        {
-            return options.Transport;
-        }
-
-        if (options.ProjectMode == DebugBundleProjectMode.LocalOnly || options.Environment is "development" or "local")
-        {
-            return new FileEventTransport(options.LocalEventsDir);
-        }
-
-        if (string.IsNullOrWhiteSpace(options.ProjectToken))
-        {
-            return null;
-        }
-
-        return new HttpEventTransport(options.Endpoint, options.RequestTimeout);
-    }
-
-    private static IRemoteConfigFetcher? ResolveRemoteConfigFetcher(ResolvedDebugBundleOptions options)
-    {
-        if (!options.Enabled || options.ProjectMode == DebugBundleProjectMode.LocalOnly || string.IsNullOrWhiteSpace(options.ProjectToken))
-        {
-            return null;
-        }
-
-        return options.RemoteConfigFetcher ?? new HttpRemoteConfigFetcher(options.RequestTimeout);
     }
 
     private bool ShouldCaptureLogByPolicy(DebugBundleLogLevel level)
@@ -843,69 +775,4 @@ public sealed class DebugBundleClient : IDebugBundleClient, IDisposable
         return pattern.Equals(label, StringComparison.Ordinal);
     }
 
-    private static Dictionary<string, object?> ToDictionary(object? value)
-    {
-        if (value is Dictionary<string, object?> typed)
-        {
-            return typed;
-        }
-
-        if (value is IDictionary<string, object> objectDictionary)
-        {
-            return objectDictionary.ToDictionary(item => item.Key, item => (object?)item.Value, StringComparer.Ordinal);
-        }
-
-        return new Dictionary<string, object?> { ["value"] = value };
-    }
-
-    private static Dictionary<string, string> FilterHeaders(IDictionary<string, string> headers)
-    {
-        var allowlist = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "user-agent",
-            "content-type",
-            "accept",
-            "x-request-id",
-            "x-correlation-id",
-            "x-debugbundle-trace-id",
-            "traceparent"
-        };
-        return headers
-            .Where(item => allowlist.Contains(item.Key))
-            .ToDictionary(item => item.Key.ToLowerInvariant(), item => item.Value, StringComparer.Ordinal);
-    }
-
-    private static Dictionary<string, object?> BuildRuntimeFacts()
-    {
-        return new Dictionary<string, object?>
-        {
-            ["version"] = RuntimeInformation.FrameworkDescription,
-            ["platform"] = RuntimeInformation.OSDescription,
-            ["arch"] = RuntimeInformation.ProcessArchitecture.ToString(),
-            ["pid"] = Process.GetCurrentProcess().Id,
-            ["gc_server"] = System.Runtime.GCSettings.IsServerGC
-        };
-    }
-
-    private static void AddIfMissing(IDictionary<string, object?> target, string key, object? value)
-    {
-        if (!target.ContainsKey(key))
-        {
-            target[key] = value;
-        }
-    }
-
-    private static string LevelName(DebugBundleLogLevel level)
-    {
-        return level switch
-        {
-            DebugBundleLogLevel.Trace => "trace",
-            DebugBundleLogLevel.Debug => "debug",
-            DebugBundleLogLevel.Information => "info",
-            DebugBundleLogLevel.Warning => "warning",
-            DebugBundleLogLevel.Error => "error",
-            DebugBundleLogLevel.Critical => "critical",
-            _ => "info"
-        };
-    }
 }

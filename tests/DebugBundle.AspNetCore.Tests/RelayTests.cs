@@ -191,6 +191,45 @@ public sealed class RelayTests
         Assert.Single(Directory.EnumerateFiles(root, "*.events.json"));
     }
 
+    [Fact]
+    public async Task Relay_Rejects_Unsupported_Methods_And_Malformed_Batches()
+    {
+        using var server = RelayServer(new DebugBundleOptions
+        {
+            ProjectToken = "dbundle_proj_server",
+            ProjectMode = DebugBundleProjectMode.LocalOnly,
+            LocalEventsDir = Path.Combine(
+                Path.GetTempPath(),
+                "debugbundle-dotnet-relay-invalid",
+                Guid.NewGuid().ToString("N"))
+        });
+        var client = server.CreateClient();
+        client.DefaultRequestHeaders.TryAddWithoutValidation("Origin", "http://localhost");
+
+        var unsupportedMethod = await client.GetAsync("/debugbundle/browser");
+        var malformedJson = await client.PostAsync(
+            "/debugbundle/browser",
+            new StringContent("{", Encoding.UTF8, "application/json"));
+        var missingBatch = await client.PostAsync(
+            "/debugbundle/browser",
+            new StringContent("""{"batch":null}""", Encoding.UTF8, "application/json"));
+        var invalidCandidate = await client.PostAsync(
+            "/debugbundle/browser",
+            new StringContent("""{"batch":[42]}""", Encoding.UTF8, "application/json"));
+        var unsupportedEvent = await client.PostAsync(
+            "/debugbundle/browser",
+            new StringContent(
+                BrowserBatch().Replace("frontend_exception", "unsupported_event", StringComparison.Ordinal),
+                Encoding.UTF8,
+                "application/json"));
+
+        Assert.Equal(System.Net.HttpStatusCode.MethodNotAllowed, unsupportedMethod.StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, malformedJson.StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, missingBatch.StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, invalidCandidate.StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, unsupportedEvent.StatusCode);
+    }
+
     private static TestServer RelayServer(DebugBundleOptions sdkOptions, Action<DebugBundleRelayOptions>? configureRelay = null)
     {
         return new TestServer(new WebHostBuilder()
