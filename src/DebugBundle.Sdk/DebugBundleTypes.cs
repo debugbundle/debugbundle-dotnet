@@ -104,5 +104,5 @@ public sealed class DebugBundleServiceDescriptor
 public static class DebugBundleConstants
 {
     public const string SdkName = "@debugbundle/sdk-dotnet";
-    public const string SdkVersion = "1.3.0";
+    public const string SdkVersion = "1.4.0";
 }

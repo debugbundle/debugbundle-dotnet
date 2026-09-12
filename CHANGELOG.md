@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.0] - 2026-09-12
+
+### Changed
+
+- License first-party SDK code under Apache-2.0 and ship consistent package licensing metadata and license text.
+
 ## [Unreleased]
 
 ## [1.3.0] - 2026-07-28
@@ -32,7 +38,7 @@
 ### Fixed
 
 - Normalized canonical event-envelope emission so custom app context now stays in envelope `context`, request events avoid legacy payload extras, and installed projects stop tripping malformed ingestion rejects after upgrade.
-- Corrected NuGet package license metadata to `AGPL-3.0-only` so published package metadata matches the repository license.
+- Corrected NuGet package license metadata to `initial open-source` so published package metadata matches the repository license.
 
 ## [1.1.0] - 2026-06-08
 
