@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using DebugBundle.Redaction;
 using DebugBundle.Transport;
 
 namespace DebugBundle;
@@ -13,7 +14,13 @@ public sealed partial class DebugBundleClient
             return;
         }
 
-        var redacted = NormalizeProbeData(_redactor.Redact(data));
+        Dictionary<string, object?> redacted;
+        try
+        {
+            label = (string)TelemetryPrivacy.Protect(label, _options.RedactFields)!;
+            redacted = NormalizeProbeData(TelemetryPrivacy.Protect(_redactor.Redact(data), _options.RedactFields));
+        }
+        catch { return; }
         SdkRemoteConfig config;
         lock (_sync)
         {

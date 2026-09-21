@@ -105,7 +105,7 @@ internal static class BeforeSendProcessor
         return value;
     }
 
-    private static bool IsValid(DebugBundleEventEnvelope envelope)
+    internal static bool IsValid(DebugBundleEventEnvelope envelope)
     {
         if (string.IsNullOrWhiteSpace(envelope.SchemaVersion) ||
             !Guid.TryParse(envelope.EventId, out _) ||

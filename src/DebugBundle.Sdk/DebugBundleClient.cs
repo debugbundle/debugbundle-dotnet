@@ -209,7 +209,13 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
             }
             else
             {
-                _persistentContext[key] = value;
+                try
+                {
+                    var protectedContext = (Dictionary<string, object?>)TelemetryPrivacy.Protect(
+                        new Dictionary<string, object?> { [key] = value }, _options.RedactFields)!;
+                    if (protectedContext.TryGetValue(key, out var safe)) _persistentContext[key] = safe;
+                }
+                catch { /* Unsupported values must not enter SDK-owned context. */ }
             }
         }
     }
@@ -295,8 +301,10 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
                     ["last_seen"] = aggregate.LastSeen.ToString("O"),
                     ["window_seconds"] = aggregate.WindowSeconds
                 }, null);
-                var preparedAggregate = BeforeSendProcessor.Apply(aggregateEnvelope, _options.BeforeSend);
-                if (preparedAggregate != null)
+                var safeAggregate = TelemetryPrivacy.ProtectEvent(aggregateEnvelope, _options.RedactFields);
+                var preparedAggregate = safeAggregate == null ? null : BeforeSendProcessor.Apply(safeAggregate, _options.BeforeSend);
+                preparedAggregate = preparedAggregate == null ? null : TelemetryPrivacy.ProtectEvent(preparedAggregate, _options.RedactFields);
+                if (preparedAggregate != null && BeforeSendProcessor.IsValid(preparedAggregate))
                 {
                     batch.Add(preparedAggregate);
                 }
@@ -426,9 +434,10 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
             }
 
             var redacted = ToDictionary(_redactor.Redact(payload));
-            var envelope = BeforeSendProcessor.Apply(
-                BuildEnvelope(eventType, redacted, context),
-                _options.BeforeSend);
+            var initial = TelemetryPrivacy.ProtectEvent(BuildEnvelope(eventType, redacted, context), _options.RedactFields);
+            if (initial == null) return;
+            var prepared = BeforeSendProcessor.Apply(initial, _options.BeforeSend);
+            var envelope = prepared == null ? null : TelemetryPrivacy.ProtectEvent(prepared, _options.RedactFields);
             if (envelope == null ||
                 !ShouldCapturePreparedEvent(envelope) ||
                 _options.RandomSource() > _options.SampleRate)
@@ -450,7 +459,9 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
                     return;
                 }
 
-                _buffer.Add(envelope);
+                var buffered = TelemetryPrivacy.ProtectEvent(envelope, _options.RedactFields);
+                if (buffered == null) return;
+                _buffer.Add(buffered);
                 if (_buffer.Count >= _options.BatchSize)
                 {
                     _ = FlushAsync();

@@ -28,6 +28,31 @@ public sealed class BeforeSendTests
     }
 
     [Fact]
+    public async Task Hook_Cannot_Reintroduce_Secrets_Into_Transport()
+    {
+        var transport = new FakeTransport();
+        var client = CreateClient(transport, envelope =>
+        {
+            envelope.Payload["message"] = "Authorization: Bearer abcdef123456";
+            envelope.Payload["attributes"] = new Dictionary<string, object?>
+            {
+                ["refreshToken"] = "canary-private-token",
+                ["operation"] = "checkout"
+            };
+            return envelope;
+        });
+
+        client.CaptureMessage("original", DebugBundleLogLevel.Error);
+        await client.FlushAsync();
+
+        var payload = transport.Batches.Single().Single().Payload;
+        Assert.Equal("Authorization: [REDACTED]", payload["message"]);
+        var attributes = Assert.IsType<Dictionary<string, object?>>(payload["attributes"]);
+        Assert.Equal("[REDACTED]", attributes["refreshToken"]);
+        Assert.Equal("checkout", attributes["operation"]);
+    }
+
+    [Fact]
     public async Task Hook_Drop_Invalid_Failure_And_Sampling_Are_Safe()
     {
         var dropTransport = new FakeTransport();

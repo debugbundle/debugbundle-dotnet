@@ -28,7 +28,7 @@ using var client = DebugBundleClient.Create(new DebugBundleOptions
 var traceId = "11111111111111111111111111111111";
 client.CaptureException(
     new InvalidOperationException("clean install smoke exception"),
-    new Dictionary<string, object?> { ["trace_id"] = traceId });
+    new Dictionary<string, object?> { ["trace_id"] = traceId, ["note"] = "password=PACKED_SMOKE_SECRET" });
 client.CaptureRequest(
     new DebugBundleRequestInfo
     {
@@ -41,7 +41,7 @@ client.CaptureRequest(
         StatusCode = 503,
         Duration = TimeSpan.FromMilliseconds(25)
     },
-    new Dictionary<string, object?> { ["trace_id"] = traceId });
+    new Dictionary<string, object?> { ["trace_id"] = traceId, ["note"] = "password=PACKED_SMOKE_SECRET" });
 
 await client.FlushAsync();
 var captured = await receivedRequest.WaitAsync(TimeSpan.FromSeconds(10));
@@ -49,6 +49,11 @@ var captured = await receivedRequest.WaitAsync(TimeSpan.FromSeconds(10));
 if (captured.Authorization != "Bearer dbundle_proj_dotnet_smoke")
 {
     throw new InvalidOperationException("The installed SDK did not send the project token as bearer authorization.");
+}
+
+if (captured.Body.Contains("PACKED_SMOKE_SECRET", StringComparison.Ordinal))
+{
+    throw new InvalidOperationException("The installed SDK leaked the privacy canary.");
 }
 
 using var document = JsonDocument.Parse(captured.Body);

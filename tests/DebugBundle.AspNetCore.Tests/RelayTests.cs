@@ -65,6 +65,31 @@ public sealed class RelayTests
     }
 
     [Fact]
+    public async Task Relay_Scrubs_Application_Text_Before_Local_File_Write()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "debugbundle-dotnet-relay-private", Guid.NewGuid().ToString("N"));
+        using var server = RelayServer(new DebugBundleOptions
+        {
+            ProjectToken = "dbundle_proj_server",
+            ProjectMode = DebugBundleProjectMode.LocalOnly,
+            LocalEventsDir = root,
+            Service = "checkout-api",
+            Environment = "test"
+        });
+        var client = server.CreateClient();
+        client.DefaultRequestHeaders.TryAddWithoutValidation("Origin", "http://localhost");
+
+        var body = BrowserBatch().Replace("browser failed", "password=canary-private-value", StringComparison.Ordinal);
+        var response = await client.PostAsync("/debugbundle/browser", new StringContent(body, Encoding.UTF8, "application/json"));
+
+        Assert.Equal(System.Net.HttpStatusCode.Accepted, response.StatusCode);
+        var stored = await File.ReadAllTextAsync(Assert.Single(Directory.EnumerateFiles(root, "*.events.json")));
+        Assert.DoesNotContain("canary-private-value", stored);
+        Assert.Contains("[REDACTED]", stored);
+        Assert.Contains("trace_browser", stored);
+    }
+
+    [Fact]
     public async Task Relay_Rejects_Disallowed_Origins_Without_Cors_Headers()
     {
         using var server = RelayServer(new DebugBundleOptions

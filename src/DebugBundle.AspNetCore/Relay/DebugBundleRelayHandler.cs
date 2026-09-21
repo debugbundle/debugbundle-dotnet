@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using DebugBundle.Redaction;
 using DebugBundle.Transport;
 using Microsoft.AspNetCore.Http;
 
@@ -204,7 +205,7 @@ public static class DebugBundleRelayHandler
         var eventType = RequiredString(candidate, "event_type");
         if (!AcceptedEventTypes.Contains(eventType))
         {
-            throw new InvalidRelayEventException($"Unsupported browser relay event type {eventType}.");
+            throw new InvalidRelayEventException("Unsupported browser relay event type.");
         }
 
         var occurredAt = RequiredString(candidate, "occurred_at");
@@ -231,7 +232,8 @@ public static class DebugBundleRelayHandler
             envelope.Correlation = correlation.Count == 0 ? null : correlation;
         }
 
-        return envelope;
+        return TelemetryPrivacy.ProtectEvent(envelope)
+            ?? throw new InvalidRelayEventException("Invalid browser relay event payload.");
     }
 
     private static DebugBundleServiceDescriptor SanitizeService(JsonElement candidate, DebugBundleOptions sdkOptions, DebugBundleRelayOptions relayOptions)

@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+## [1.5.0] - 2026-09-21
+
+### Security
+
+- Enforce mandatory bounded telemetry protection before context and probe retention, after `BeforeSend`, in the buffer and transport, and in the ASP.NET browser relay. Custom keys add to the baseline.
+
 ## [1.4.0] - 2026-09-12
 
 - Use Source Link bundled with the .NET 8+ SDK instead of overriding it with the vulnerable 8.0.0 build package (CVE-2026-62900).
@@ -7,8 +15,6 @@
 ### Changed
 
 - License first-party SDK code under Apache-2.0 and ship consistent package licensing metadata and license text.
-
-## [Unreleased]
 
 ## [1.3.0] - 2026-07-28
 
