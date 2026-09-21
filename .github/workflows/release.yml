@@ -95,7 +95,7 @@ jobs:
       - name: Published-package smoke
         shell: bash
         run: |
-          for attempt in $(seq 1 20); do
+          for attempt in $(seq 1 60); do
             rm -rf artifacts/smoke-published
             success=1
             for tfm in net8.0 net10.0; do
@@ -116,6 +116,7 @@ jobs:
             if [ "$success" -eq 1 ]; then
               exit 0
             fi
+            echo "Published packages are not consumable yet; retry ${attempt}/60."
             sleep 30
           done
           exit 1
