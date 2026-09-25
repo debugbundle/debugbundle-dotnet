@@ -9,6 +9,7 @@ public sealed class ContextProjectionTests
     public async Task CustomContextEnumerationCountAndObjectGettersNeverRunOnCapture()
     {
         using var release = new ManualResetEventSlim();
+        using var started = new ManualResetEventSlim();
         var custom = new CustomDictionary(release);
         var transport = new FakeTransport();
         using var client = DebugBundleClient.Create(new DebugBundleOptions
@@ -20,6 +21,7 @@ public sealed class ContextProjectionTests
         });
         var capture = Task.Run(() =>
         {
+            started.Set();
             client.SetContext("custom", custom);
             client.CaptureLog("context boundary", DebugBundleLogLevel.Error, new Dictionary<string, object?>
             {
@@ -28,7 +30,8 @@ public sealed class ContextProjectionTests
                 ["safe"] = new List<object?> { "ok", new Dictionary<string, object?> { ["token"] = "private" } }
             });
         });
-        try { Assert.Same(capture, await Task.WhenAny(capture, Task.Delay(250))); }
+        Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
+        try { Assert.Same(capture, await Task.WhenAny(capture, Task.Delay(500))); }
         finally { release.Set(); }
         await capture;
         Assert.False(custom.Visited);
