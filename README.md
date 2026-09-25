@@ -2,6 +2,8 @@
 
 DebugBundle for .NET captures backend exceptions, request metadata, structured logs, probe data, and browser relay traffic for ASP.NET Core and worker-style applications.
 
+Version 2.0 changes hook timing and bounds capture ownership. Review [the migration guide](MIGRATION-2.0.md) before upgrading from 1.x. Capture does not invoke custom exception accessors, logging formatters, collection implementations or object getters on application callers. The guide defines deferred weak-reference enrichment and supported primitive/container fallbacks.
+
 This repository follows `spec/sdks/csharp-sdk.md`. The implemented package family contains:
 
 - `DebugBundle.Sdk` core client, static facade, redaction, suppression, probes, HTTP transport, and secure local file transport.

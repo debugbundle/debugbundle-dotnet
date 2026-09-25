@@ -48,6 +48,15 @@ public sealed class DebugBundleResponseInfo
 
 public sealed class DebugBundleEventEnvelope
 {
+    [JsonIgnore]
+    internal WeakReference<Exception>? PendingException { get; set; }
+
+    [JsonIgnore]
+    internal Action<DebugBundleEventEnvelope>? PendingProjection { get; set; }
+
+    [JsonIgnore]
+    internal bool PendingSampling { get; set; }
+
     [JsonPropertyName("schema_version")]
     public string SchemaVersion { get; set; } = "1";
 
@@ -104,5 +113,5 @@ public sealed class DebugBundleServiceDescriptor
 public static class DebugBundleConstants
 {
     public const string SdkName = "@debugbundle/sdk-dotnet";
-    public const string SdkVersion = "1.5.0";
+    public const string SdkVersion = "2.0.0";
 }

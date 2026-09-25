@@ -6,6 +6,63 @@ namespace DebugBundle.Sdk.Tests;
 public sealed class SuppressionAndBackoffTests
 {
     [Fact]
+    public void DistinctFingerprintsStayBoundedAndNewErrorsAreStillAdmitted()
+    {
+        var tracker = new SuppressionTracker();
+        var now = DateTimeOffset.UtcNow;
+        for (var index = 0; index < 2_100; index++)
+            Assert.True(tracker.ShouldCapture($"unique-{index}", now));
+
+        Assert.True(tracker.TrackedCount <= 2_048);
+    }
+
+    [Fact]
+    public void EvictingASuppressedFingerprintReportsOneBoundedOverflowAggregate()
+    {
+        var tracker = new SuppressionTracker();
+        var now = DateTimeOffset.UtcNow;
+        for (var index = 0; index < 4; index++)
+            tracker.ShouldCapture("repeating", now);
+        for (var index = 0; index < 2_048; index++)
+            tracker.ShouldCapture($"distinct-{index}", now);
+
+        var aggregate = Assert.Single(tracker.DrainAggregates(now));
+        Assert.Equal(1, aggregate.SuppressedCount);
+        Assert.Equal(2_048, tracker.TrackedCount);
+        Assert.Empty(tracker.DrainAggregates(now));
+    }
+
+    [Fact]
+    public void SuppressionWindowResetsAndInactiveFingerprintsExpire()
+    {
+        var tracker = new SuppressionTracker();
+        var now = DateTimeOffset.UtcNow;
+        for (var index = 0; index < 4; index++)
+            tracker.ShouldCapture("repeating", now);
+
+        Assert.True(tracker.ShouldCapture("repeating", now.AddSeconds(31)));
+        Assert.Equal(1, Assert.Single(tracker.DrainAggregates(now.AddSeconds(31))).SuppressedCount);
+        Assert.Empty(tracker.DrainAggregates(now.AddSeconds(31)));
+        Assert.Empty(tracker.DrainAggregates(now.AddSeconds(92)));
+        Assert.Equal(0, tracker.TrackedCount);
+    }
+
+    [Fact]
+    public void TightErrorLoopIsRepresentedByOneAggregate()
+    {
+        var tracker = new SuppressionTracker();
+        var now = DateTimeOffset.UtcNow;
+        var admitted = 0;
+        for (var index = 0; index < 20; index++)
+            if (tracker.ShouldCapture("looping", now.AddMilliseconds(index))) admitted++;
+
+        Assert.Equal(3, admitted);
+        var aggregate = Assert.Single(tracker.DrainAggregates(now.AddSeconds(1)));
+        Assert.Equal(17, aggregate.SuppressedCount);
+        Assert.True(aggregate.LoopMode);
+    }
+
+    [Fact]
     public async Task Duplicate_Suppression_Emits_Aggregate()
     {
         var transport = new FakeTransport();
@@ -53,6 +110,26 @@ public sealed class SuppressionAndBackoffTests
 
         Assert.Equal(DebugBundleStatus.Degraded, client.Status);
         Assert.Equal(1, transport.Calls);
+    }
+
+    [Fact]
+    public async Task BufferedEventsRetryWithoutAnotherApplicationCapture()
+    {
+        var transport = new FakeTransport();
+        transport.EnqueueResponse(new EventTransportResult
+        {
+            StatusCode = 429,
+            RetryAfter = TimeSpan.FromMilliseconds(40)
+        });
+        using var client = CreateClient(transport);
+        client.CaptureLog("retry automatically", DebugBundleLogLevel.Error);
+        await client.FlushAsync();
+
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
+        while (transport.Calls < 2 && DateTimeOffset.UtcNow < deadline)
+            await Task.Delay(10);
+
+        Assert.Equal(2, transport.Calls);
     }
 
     [Fact]

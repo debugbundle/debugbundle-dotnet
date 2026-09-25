@@ -30,7 +30,7 @@ internal static class BeforeSendProcessor
                 "browser_event", "rejection_reason", "dom_context", "probe_data"),
             ["deploy_metadata"] = Set("commit_sha", "version", "branch", "environment", "deployed_at"),
             ["error_suppressed"] = Set(
-                "fingerprint", "suppressed_count", "window_seconds", "first_seen", "last_seen", "device"),
+                "fingerprint", "suppressed_count", "window_seconds", "first_seen", "last_seen", "reason", "level", "device"),
             ["probe_event"] = Set("label", "data", "activation_id", "probe_label_pattern", "device")
         };
 

@@ -138,13 +138,26 @@ public static class TelemetryPrivacy
         if (work.Bytes > MaxBytes) throw new ArgumentException("budget_exceeded");
     }
 
+    // Exact framework containers cannot override Count, enumeration, or index access.
+    // Wrappers around arbitrary application collections are intentionally unsupported.
+    internal static bool IsSafeContainer(object value)
+    {
+        var type = value.GetType();
+        if (type.IsArray) return type.GetArrayRank() == 1;
+        if (type == typeof(Hashtable) || type == typeof(ArrayList)) return true;
+        if (!type.IsGenericType) return false;
+        var definition = type.GetGenericTypeDefinition();
+        return definition == typeof(List<>) ||
+            (definition == typeof(Dictionary<,>) && type.GetGenericArguments()[0] == typeof(string));
+    }
+
     private static object? Visit(object? value, Work work, int depth, bool structured)
     {
         if (++work.Nodes > 4096) throw new ArgumentException("budget_exceeded");
         if (depth > 16) return Redacted;
         if (value is JsonElement element) return VisitJson(element, work, depth, structured);
         if (value is string text) return CleanString(text, work, structured);
-        if (value is IDictionary dictionary)
+        if (value is IDictionary dictionary && IsSafeContainer(value))
         {
             if (!work.Seen.Add(dictionary)) return "[Circular]";
             try
@@ -163,7 +176,7 @@ public static class TelemetryPrivacy
             }
             finally { work.Seen.Remove(dictionary); }
         }
-        if (value is IEnumerable enumerable)
+        if (value is IEnumerable enumerable && IsSafeContainer(value))
         {
             if (!work.Seen.Add(enumerable)) return "[Circular]";
             try
@@ -181,7 +194,8 @@ public static class TelemetryPrivacy
         if (value is null or bool or byte or sbyte or short or ushort or int or uint or long or ulong or decimal) return value;
         if (value is double number && !double.IsNaN(number) && !double.IsInfinity(number)) return value;
         if (value is float fraction && !float.IsNaN(fraction) && !float.IsInfinity(fraction)) return value;
-        throw new ArgumentException("unsafe_input");
+        if (value is char or DateTime or DateTimeOffset or Guid or TimeSpan or Enum) return Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture);
+        return "[Unsupported value]";
     }
 
     private static object? VisitJson(JsonElement element, Work work, int depth, bool structured)

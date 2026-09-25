@@ -99,7 +99,7 @@ public sealed class BeforeSendTests
         });
         sampledClient.CaptureMessage("sampled out", DebugBundleLogLevel.Error);
         await sampledClient.FlushAsync();
-        Assert.Equal(1, sampledCalls);
+        Assert.Equal(0, sampledCalls);
         Assert.Equal(2, transport.Calls);
     }
 

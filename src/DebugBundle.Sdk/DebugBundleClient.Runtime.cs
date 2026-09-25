@@ -97,6 +97,15 @@ public sealed partial class DebugBundleClient
         _flushTimer ??= new Timer(_ => _ = FlushAsync(), null, _options.FlushInterval, Timeout.InfiniteTimeSpan);
     }
 
+    private void ScheduleRetryLocked()
+    {
+        if (_retryUntil == null || _disposed) return;
+        var remaining = _retryUntil.Value - DateTimeOffset.UtcNow;
+        if (remaining < TimeSpan.FromMilliseconds(1)) remaining = TimeSpan.FromMilliseconds(1);
+        _flushTimer?.Dispose();
+        _flushTimer = new Timer(_ => _ = FlushAsync(), null, remaining, Timeout.InfiniteTimeSpan);
+    }
+
     private async Task RefreshRemoteConfigAsync(CancellationToken cancellationToken)
     {
         if (_remoteConfigFetcher == null || string.IsNullOrWhiteSpace(_options.ProjectToken))
@@ -213,7 +222,9 @@ public sealed partial class DebugBundleClient
             "x-debugbundle-trace-id",
             "traceparent"
         };
+        if (!TelemetryPrivacy.IsSafeContainer(headers)) return new Dictionary<string, string>();
         return headers
+            .Take(256)
             .Where(item => allowlist.Contains(item.Key))
             .ToDictionary(item => item.Key.ToLowerInvariant(), item => item.Value, StringComparer.Ordinal);
     }

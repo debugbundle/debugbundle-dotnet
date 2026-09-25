@@ -89,11 +89,18 @@ internal sealed class DebugBundleLogger : ILogger
             return;
         }
 
+        if (client is DebugBundleClient admission && !admission.CanAdmitLog(MapLevel(logLevel))) return;
+
         CaptureGuard.Value = true;
         try
         {
-            var fields = BuildFields(logLevel, eventId, state, exception, formatter);
-            client.CaptureLog(RenderMessage(state, exception, formatter), MapLevel(logLevel), fields);
+            var message = LogProjection.Snapshot(state, exception);
+            var fields = BuildFields(logLevel, eventId, state, exception, message);
+            if (client is DebugBundleClient concrete)
+                concrete.CaptureLogWithProjection(message, MapLevel(logLevel), fields,
+                    _options.IncludeExceptionDetails ? exception : null, LogProjection.Defer(state, exception, formatter));
+            else
+                client.CaptureLog(message, MapLevel(logLevel), fields);
         }
         catch
         {
@@ -110,7 +117,7 @@ internal sealed class DebugBundleLogger : ILogger
         EventId eventId,
         TState state,
         Exception? exception,
-        Func<TState, Exception?, string> formatter)
+        string message)
     {
         var fields = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
@@ -118,7 +125,7 @@ internal sealed class DebugBundleLogger : ILogger
             ["logger.level"] = logLevel.ToString(),
             ["event_id.id"] = eventId.Id,
             ["event_id.name"] = eventId.Name,
-            ["message"] = RenderMessage(state, exception, formatter),
+            ["message"] = message,
             ["timestamp"] = DateTimeOffset.UtcNow.ToString("O")
         };
 
@@ -136,11 +143,13 @@ internal sealed class DebugBundleLogger : ILogger
 
     private void AddStructuredState<TState>(IDictionary<string, object?> fields, TState state)
     {
-        if (state is not IEnumerable<KeyValuePair<string, object?>> structured)
+        if (state is not IEnumerable<KeyValuePair<string, object?>> structured ||
+            (state.GetType() != typeof(Dictionary<string, object?>) &&
+             state.GetType() != typeof(KeyValuePair<string, object?>[]) && !LogProjection.IsFrameworkState(state)))
         {
             if (state != null)
             {
-                fields["state"] = state;
+                fields["state"] = LogProjection.Primitive(state);
             }
 
             return;
@@ -152,17 +161,17 @@ internal sealed class DebugBundleLogger : ILogger
         {
             if (item.Key == "{OriginalFormat}")
             {
-                fields["message_template"] = item.Value;
+                fields["message_template"] = LogProjection.Primitive(item.Value);
                 continue;
             }
 
-            if (count >= Math.Max(1, _options.MaxStructuredFields))
+            if (count >= Math.Min(50, Math.Max(1, _options.MaxStructuredFields)))
             {
                 attributes["_truncated"] = "additional structured fields omitted";
                 break;
             }
 
-            attributes[item.Key] = item.Value;
+            if (item.Key.Length <= 128) attributes[item.Key] = LogProjection.Primitive(item.Value);
             count++;
         }
 
@@ -180,7 +189,11 @@ internal sealed class DebugBundleLogger : ILogger
         }
 
         var scopes = new List<object?>();
-        _scopeProvider().ForEachScope((scope, target) => target.Add(NormalizeScope(scope)), scopes);
+        var provider = _scopeProvider();
+        // Custom providers can execute application code while enumerating scopes.
+        if (provider.GetType().Assembly != typeof(ILogger).Assembly &&
+            provider.GetType().Assembly.GetName().Name != "Microsoft.Extensions.Logging") return;
+        provider.ForEachScope((scope, target) => { if (target.Count < 50) target.Add(NormalizeScope(scope)); }, scopes);
         if (scopes.Count > 0)
         {
             fields["scopes"] = scopes;
@@ -194,23 +207,17 @@ internal sealed class DebugBundleLogger : ILogger
             return;
         }
 
-        fields["exception"] = new Dictionary<string, object?>(StringComparer.Ordinal)
-        {
-            ["type"] = exception.GetType().FullName,
-            ["message"] = exception.Message,
-            ["stack"] = exception.ToString(),
-            ["hresult"] = exception.HResult
-        };
+        fields["exception"] = ExceptionProjection.Snapshot(exception);
     }
 
     private object? NormalizeScope(object? scope)
     {
-        if (scope is IEnumerable<KeyValuePair<string, object?>> values)
+        if (scope is Dictionary<string, object?> values && scope.GetType() == typeof(Dictionary<string, object?>))
         {
-            return values.ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal);
+            return values.Take(50).Where(item => item.Key.Length <= 128).ToDictionary(item => item.Key, item => LogProjection.Primitive(item.Value), StringComparer.Ordinal);
         }
 
-        return scope;
+        return LogProjection.Primitive(scope);
     }
 
     private bool IsExcludedCategory(string categoryName)
@@ -224,19 +231,6 @@ internal sealed class DebugBundleLogger : ILogger
         }
 
         return false;
-    }
-
-    private static string RenderMessage<TState>(TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-    {
-        try
-        {
-            var message = formatter(state, exception);
-            return string.IsNullOrWhiteSpace(message) ? exception?.Message ?? string.Empty : message;
-        }
-        catch
-        {
-            return exception?.Message ?? string.Empty;
-        }
     }
 
     private static DebugBundleLogLevel MapLevel(LogLevel logLevel)

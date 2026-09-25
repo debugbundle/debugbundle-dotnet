@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-09-25
+
+### Changed
+
+- Reject logs and requests against effective local/remote policy before building and privacy-scanning events. Filtered and sampled-out events no longer invoke `BeforeSend`.
+- Fetch initial remote configuration off the constructor thread with a restrictive initial policy. Run `BeforeSend`, local file and HTTP transport through one coalesced sender instead of from capture callbacks.
+- Bound pending captured events to 512 and combined pending/in-flight capture ownership to 1,000 events/8 MiB, including hook replacements and suppression aggregates. Reserve incident capacity, prioritize exceptions and failed requests over lower-severity logs and ordinary requests, emit queue-pressure aggregates, and retry queued events after backoff without requiring another application capture. Valid hook changes to event IDs retain independent resource accounting.
+- Move custom exception accessors and reference-state logging formatters onto the existing sender using weak handles; preserve ordinary exception summaries and primitive Microsoft logging templates. Custom value-state formatters and arbitrary object/collection accessors use documented safe fallbacks.
+- Cap duplicate-suppression state at 2,048 fingerprints.
+- Bound concurrent explicit `FlushAsync` waiters to 64 so a held sender cannot create an unbounded number of timeout timers.
+- See [MIGRATION-2.0.md](MIGRATION-2.0.md) before upgrading from 1.x.
+
 ## [1.5.0] - 2026-09-21
 
 ### Security

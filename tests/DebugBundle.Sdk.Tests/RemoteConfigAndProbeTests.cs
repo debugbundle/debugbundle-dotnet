@@ -37,6 +37,7 @@ public sealed class RemoteConfigAndProbeTests
             RandomSource = () => 0
         });
 
+        await client.InitialRemoteConfigTask;
         client.CaptureLog("warning should drop", DebugBundleLogLevel.Warning);
         client.CaptureLog("error should ship", DebugBundleLogLevel.Error);
         client.CaptureRequest(new DebugBundleRequestInfo { Method = "GET", Path = "/ok" }, new DebugBundleResponseInfo { StatusCode = 200 });
@@ -89,6 +90,7 @@ public sealed class RemoteConfigAndProbeTests
             RandomSource = () => 0
         });
 
+        await client.InitialRemoteConfigTask;
         client.CaptureRequest(new DebugBundleRequestInfo { Method = "POST", Path = "/checkout/cart" }, new DebugBundleResponseInfo { StatusCode = 404 });
         client.CaptureRequest(new DebugBundleRequestInfo { Method = "GET", Path = "/checkout/cart" }, new DebugBundleResponseInfo { StatusCode = 404 });
         await client.FlushAsync();
@@ -135,6 +137,7 @@ public sealed class RemoteConfigAndProbeTests
             RandomSource = () => 0
         });
 
+        await client.InitialRemoteConfigTask;
         client.CaptureRequest(new DebugBundleRequestInfo { Method = "TRACE", Path = "/checkout/cart" }, new DebugBundleResponseInfo { StatusCode = 404 });
         await client.FlushAsync();
 
@@ -176,6 +179,7 @@ public sealed class RemoteConfigAndProbeTests
             RandomSource = () => 0
         });
 
+        await client.InitialRemoteConfigTask;
         var invoked = false;
         client.Probe("checkout.tax", () =>
         {
@@ -224,6 +228,7 @@ public sealed class RemoteConfigAndProbeTests
             RandomSource = () => 0
         });
 
+        await client.InitialRemoteConfigTask;
         using (client.BeginScope(new Dictionary<string, object?> { ["probe_trigger_token"] = token }))
         {
             client.Probe("checkout.trigger", () => new { Enabled = true }, new ProbeOptions { Heavy = true });

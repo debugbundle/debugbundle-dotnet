@@ -5,3 +5,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("DebugBundle.Log4Net")]
 [assembly: InternalsVisibleTo("DebugBundle.NLog")]
 [assembly: InternalsVisibleTo("DebugBundle.Serilog")]
+[assembly: InternalsVisibleTo("DebugBundle.Extensions.Logging")]

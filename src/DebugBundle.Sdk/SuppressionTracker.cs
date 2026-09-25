@@ -9,16 +9,34 @@ internal sealed class SuppressionTracker
     private static readonly TimeSpan LoopWindow = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan SilenceReset = TimeSpan.FromSeconds(60);
     private const int LoopThreshold = 10;
+    private const int MaxTrackedFingerprints = 2_048;
 
     private readonly object _sync = new();
     private readonly Dictionary<string, SuppressionState> _states = new(StringComparer.Ordinal);
+    private int _overflowCount;
+    private DateTimeOffset _overflowFirst;
+    private DateTimeOffset _overflowLast;
+
+    internal int TrackedCount { get { lock (_sync) return _states.Count; } }
 
     public bool ShouldCapture(string fingerprint, DateTimeOffset now)
     {
-        lock (_sync)
+        if (!Monitor.TryEnter(_sync)) return true;
+        try
         {
             if (!_states.TryGetValue(fingerprint, out var state) || now - state.LastSeen > SilenceReset)
             {
+                if (!_states.ContainsKey(fingerprint) && _states.Count >= MaxTrackedFingerprints)
+                {
+                    var oldest = _states.First();
+                    if (oldest.Value.Suppressed > 0)
+                    {
+                        if (_overflowCount == 0) _overflowFirst = oldest.Value.FirstSeen;
+                        _overflowCount = (int)Math.Min(int.MaxValue, (long)_overflowCount + oldest.Value.Suppressed);
+                        _overflowLast = oldest.Value.LastSeen;
+                    }
+                    _states.Remove(oldest.Key);
+                }
                 state = new SuppressionState(now);
                 _states[fingerprint] = state;
             }
@@ -48,6 +66,7 @@ internal sealed class SuppressionTracker
             state.Suppressed++;
             return false;
         }
+        finally { Monitor.Exit(_sync); }
     }
 
     public IReadOnlyList<SuppressionAggregate> DrainAggregates(DateTimeOffset now)
@@ -80,6 +99,19 @@ internal sealed class SuppressionTracker
                 });
                 state.Suppressed = 0;
                 state.LastAggregateAt = now;
+            }
+
+            if (_overflowCount > 0)
+            {
+                aggregates.Add(new SuppressionAggregate
+                {
+                    Fingerprint = Fingerprint("suppression_state_pressure", new Dictionary<string, object?>()),
+                    SuppressedCount = _overflowCount,
+                    FirstSeen = _overflowFirst,
+                    LastSeen = _overflowLast,
+                    WindowSeconds = (int)SuppressionWindow.TotalSeconds
+                });
+                _overflowCount = 0;
             }
 
             return aggregates;

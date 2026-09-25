@@ -99,7 +99,7 @@ public sealed class DebugBundleRedactor
             return "[Circular]";
         }
 
-        if (value is IDictionary dictionary)
+        if (value is IDictionary dictionary && TelemetryPrivacy.IsSafeContainer(value))
         {
             var result = new Dictionary<string, object?>(StringComparer.Ordinal);
             var count = 0;
@@ -111,7 +111,7 @@ public sealed class DebugBundleRedactor
                     break;
                 }
 
-                var entryKey = Convert.ToString(entry.Key, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+                if (entry.Key is not string entryKey || entryKey.Length > 128) continue;
                 result[entryKey] = RedactValue(entry.Value, entryKey, depth + 1, visited);
                 count++;
             }
@@ -119,7 +119,7 @@ public sealed class DebugBundleRedactor
             return result;
         }
 
-        if (value is IEnumerable enumerable)
+        if (value is IEnumerable enumerable && TelemetryPrivacy.IsSafeContainer(value))
         {
             var result = new List<object?>();
             var count = 0;
@@ -138,41 +138,7 @@ public sealed class DebugBundleRedactor
             return result;
         }
 
-        return RedactObject(value, depth, visited);
-    }
-
-    private Dictionary<string, object?> RedactObject(object value, int depth, ReferenceSet visited)
-    {
-        var result = new Dictionary<string, object?>(StringComparer.Ordinal);
-        var count = 0;
-        foreach (var property in value.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
-        {
-            if (property.GetIndexParameters().Length != 0 || !property.CanRead)
-            {
-                continue;
-            }
-
-            if (count >= DefaultMaxItems)
-            {
-                result["_truncated"] = "additional properties omitted";
-                break;
-            }
-
-            object? propertyValue;
-            try
-            {
-                propertyValue = property.GetValue(value);
-            }
-            catch
-            {
-                propertyValue = "[Unreadable]";
-            }
-
-            result[property.Name] = RedactValue(propertyValue, property.Name, depth + 1, visited);
-            count++;
-        }
-
-        return result;
+        return "[Unsupported value]";
     }
 
     private bool IsSensitiveKey(string? key)

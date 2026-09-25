@@ -13,19 +13,23 @@ public sealed class FileEventTransport : IEventTransport
 
     public FileEventTransport(string root)
     {
-        _root = ValidateRoot(root);
-        Directory.CreateDirectory(_root);
-        EnsureOwnerOnlyDirectory(_root);
+        if (string.IsNullOrWhiteSpace(root)) throw new ArgumentException("Events directory is required.", nameof(root));
+        _root = Path.GetFullPath(root);
     }
 
     public async Task<EventTransportResult> SendAsync(EventTransportRequest request, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
+        var root = ValidateRoot(_root);
+        Directory.CreateDirectory(root);
+        ValidateRoot(root);
+        EnsureOwnerOnlyDirectory(root);
+
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var sequence = NextSequence();
         var service = SanitizeServiceName(request.Events.FirstOrDefault()?.Service.Name);
-        var finalPath = Path.Combine(_root, $"{timestamp}-{sequence}-{service}.events.json");
+        var finalPath = Path.Combine(root, $"{timestamp}-{sequence}-{service}.events.json");
         var tempPath = finalPath + ".tmp-" + RandomHex(8);
 
         if (File.Exists(finalPath) && File.GetAttributes(finalPath).HasFlag(FileAttributes.ReparsePoint))

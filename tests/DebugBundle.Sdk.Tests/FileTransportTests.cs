@@ -7,6 +7,16 @@ namespace DebugBundle.Sdk.Tests;
 public sealed class FileTransportTests
 {
     [Fact]
+    public void ConstructorDoesNotTouchTheFilesystem()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "debugbundle-dotnet-tests", Guid.NewGuid().ToString("N"));
+
+        _ = new FileEventTransport(root);
+
+        Assert.False(Directory.Exists(root));
+    }
+
+    [Fact]
     public async Task File_Transport_Writes_Atomic_Event_Array()
     {
         var root = Path.Combine(Path.GetTempPath(), "debugbundle-dotnet-tests", Guid.NewGuid().ToString("N"));
