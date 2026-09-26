@@ -1,7 +1,7 @@
 DOTNET ?= dotnet
 CONFIGURATION ?= Release
 FORMAT_ARGS ?= --verify-no-changes
-VERSION ?= 2.0.0
+VERSION ?= 2.0.1
 SMOKE_TFM ?= net8.0
 DOTNET_IMAGE ?= mcr.microsoft.com/dotnet/sdk:8.0
 DOCKER_RUN = docker run --rm -v "$(CURDIR):/workspace" -w /workspace $(DOTNET_IMAGE)
@@ -14,10 +14,10 @@ test-focused-docker:
 	$(DOCKER_RUN) sh -lc 'dotnet test tests/DebugBundle.Sdk.Tests/DebugBundle.Sdk.Tests.csproj --configuration $(CONFIGURATION) --filter "$(TEST_FILTER)"'
 
 format-docker:
-	$(DOCKER_RUN) sh -lc 'dotnet format --verify-no-changes'
+	$(DOCKER_RUN) sh -lc 'dotnet format $(FORMAT_ARGS)'
 
 smoke-docker:
-	$(DOCKER_RUN) sh -lc 'dotnet restore && dotnet build --configuration $(CONFIGURATION) --no-restore && dotnet pack --configuration $(CONFIGURATION) --no-build --output artifacts/packages && dotnet restore smoke/clean-install/DebugBundle.Smoke.csproj -p:DebugBundlePackageVersion=$(VERSION) -p:DebugBundleSmokeTargetFramework=$(SMOKE_TFM) --source artifacts/packages --source https://api.nuget.org/v3/index.json && dotnet run --project smoke/clean-install/DebugBundle.Smoke.csproj --configuration $(CONFIGURATION) --no-restore -p:DebugBundlePackageVersion=$(VERSION) -p:DebugBundleSmokeTargetFramework=$(SMOKE_TFM)'
+	$(DOCKER_RUN) sh -lc 'dotnet restore && dotnet build --configuration $(CONFIGURATION) --no-restore && dotnet pack --configuration $(CONFIGURATION) --no-build --output artifacts/packages && dotnet restore smoke/clean-install/DebugBundle.Smoke.csproj -p:DebugBundlePackageVersion=$(VERSION) -p:DebugBundleSmokeTargetFramework=$(SMOKE_TFM) --packages /tmp/debugbundle-smoke-packages --source artifacts/packages --source https://api.nuget.org/v3/index.json && dotnet run --project smoke/clean-install/DebugBundle.Smoke.csproj --configuration $(CONFIGURATION) --no-restore -p:DebugBundlePackageVersion=$(VERSION) -p:DebugBundleSmokeTargetFramework=$(SMOKE_TFM)'
 
 coverage-docker:
 	rm -rf artifacts/coverage

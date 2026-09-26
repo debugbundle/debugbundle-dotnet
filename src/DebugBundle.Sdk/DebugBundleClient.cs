@@ -442,7 +442,7 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
                     RestoreBatchLocked(batch, batchSizes);
                     _failures++;
                     Status = DebugBundleStatus.Degraded;
-                    _retryUntil = DateTimeOffset.UtcNow + (response.RetryAfter ?? DefaultBackoff(_failures));
+                    _retryUntil = DateTimeOffset.UtcNow + BoundedRetryAfter(response.RetryAfter, _failures);
                     ScheduleRetryLocked();
                     return;
                 }
@@ -454,13 +454,13 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
                     return;
                 }
 
-                var acknowledgement = IngestionAcknowledgement.Decide(response.Body, batch.Count);
+                var acknowledgement = IngestionAcknowledgement.Decide(response.Body, batch.Count, transport is HttpEventTransport);
                 if (acknowledgement.Kind == IngestionAcknowledgementKind.ProtocolFailure)
                 {
                     RestoreBatchLocked(batch, batchSizes);
                     _failures++;
                     Status = DebugBundleStatus.Degraded;
-                    _retryUntil = DateTimeOffset.UtcNow + (response.RetryAfter ?? DefaultBackoff(_failures));
+                    _retryUntil = DateTimeOffset.UtcNow + BoundedRetryAfter(response.RetryAfter, _failures);
                     ScheduleRetryLocked();
                     return;
                 }
@@ -484,7 +484,7 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
                     {
                         _failures++;
                         Status = DebugBundleStatus.Degraded;
-                        _retryUntil = DateTimeOffset.UtcNow + (response.RetryAfter ?? DefaultBackoff(_failures));
+                        _retryUntil = DateTimeOffset.UtcNow + BoundedRetryAfter(response.RetryAfter, _failures);
                         ScheduleRetryLocked();
                         return;
                     }

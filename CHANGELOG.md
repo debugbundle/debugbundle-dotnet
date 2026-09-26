@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-09-26
+
+### Fixed
+
+- Bound numeric HTTP retry hints before duration conversion to prevent overflow; preserve safe fallback for invalid hints.
+
+- Require a valid canonical acknowledgement from built-in HTTP delivery; retain the full batch and back off for missing or malformed responses. Preserve bodyless file and explicit custom transport compatibility.
+- Cap transport retry hints at five minutes before scheduling retries, including custom transport results.
+
 ## [2.0.0] - 2026-09-25
 
 ### Changed

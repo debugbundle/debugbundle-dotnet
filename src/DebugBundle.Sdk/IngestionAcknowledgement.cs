@@ -25,11 +25,11 @@ internal static class IngestionAcknowledgement
         "analytics_quota_exceeded"
     };
 
-    public static IngestionAcknowledgementDecision Decide(string? body, int batchLength)
+    public static IngestionAcknowledgementDecision Decide(string? body, int batchLength, bool required = false)
     {
         if (string.IsNullOrWhiteSpace(body))
         {
-            return new IngestionAcknowledgementDecision { Kind = IngestionAcknowledgementKind.Legacy };
+            return required ? ProtocolFailure() : new IngestionAcknowledgementDecision { Kind = IngestionAcknowledgementKind.Legacy };
         }
 
         try
@@ -46,10 +46,11 @@ internal static class IngestionAcknowledgement
             var hasErrors = root.TryGetProperty("errors", out var errorsElement);
             if (!hasAccepted && !hasRejected && !hasErrors)
             {
-                return new IngestionAcknowledgementDecision { Kind = IngestionAcknowledgementKind.Legacy };
+                return required ? ProtocolFailure() : new IngestionAcknowledgementDecision { Kind = IngestionAcknowledgementKind.Legacy };
             }
 
             if (!hasAccepted || !hasRejected || !hasErrors ||
+                acceptedElement.ValueKind != JsonValueKind.Number || rejectedElement.ValueKind != JsonValueKind.Number ||
                 !acceptedElement.TryGetInt32(out var accepted) || accepted < 0 ||
                 !rejectedElement.TryGetInt32(out var rejected) || rejected < 0 ||
                 errorsElement.ValueKind != JsonValueKind.Array ||
@@ -65,6 +66,7 @@ internal static class IngestionAcknowledgement
             {
                 if (error.ValueKind != JsonValueKind.Object ||
                     !error.TryGetProperty("index", out var indexElement) ||
+                    indexElement.ValueKind != JsonValueKind.Number ||
                     !indexElement.TryGetInt32(out var index) ||
                     index < 0 || index >= batchLength || !seen.Add(index) ||
                     !error.TryGetProperty("reason", out var reasonElement) ||

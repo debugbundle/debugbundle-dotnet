@@ -210,3 +210,9 @@ make verify
 ```
 
 `make verify` restores, builds, tests, checks formatting, packs staged NuGet artifacts, and runs a clean-install smoke fixture against the staged packages. The SDK repo is intentionally independent from the core DebugBundle Docker stack. Tests use fake transports and ASP.NET Core test hosts.
+
+## Delivery acknowledgement and retry limits
+
+The built-in HTTP transport requires the canonical ingestion acknowledgement (`accepted`, `rejected`, and `errors`). Empty responses, unrelated JSON, malformed counts, or invalid rejection indices retain the full batch with backoff. Valid acknowledgements remove accepted and terminally rejected events and retry only the indexed retryable rejections; an all-rejected batch does not advance `lastEventAt`.
+
+File transports and explicitly supplied custom/legacy transports retain their documented bodyless success fallback. A custom transport that returns acknowledgement fields must return the complete canonical shape. Retry hints are bounded to five minutes, and failures remain contained within the SDK's existing delivery path.

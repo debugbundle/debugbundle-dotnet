@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -59,9 +60,10 @@ public sealed class HttpEventTransport : IEventTransport, IDisposable
         {
             retryAfter = value.Date.Value - DateTimeOffset.UtcNow;
         }
-        else if (response.Headers.TryGetValues("Retry-After", out var values) && double.TryParse(values.FirstOrDefault(), out var seconds))
+        else if (response.Headers.TryGetValues("Retry-After", out var values) && double.TryParse(values.FirstOrDefault(), NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds))
         {
-            retryAfter = TimeSpan.FromSeconds(seconds);
+            if (!double.IsNaN(seconds) && !double.IsInfinity(seconds) && seconds > 0)
+                retryAfter = TimeSpan.FromSeconds(Math.Min(MaxRetryAfter.TotalSeconds, seconds));
         }
 
         if (retryAfter == null || retryAfter <= TimeSpan.Zero)

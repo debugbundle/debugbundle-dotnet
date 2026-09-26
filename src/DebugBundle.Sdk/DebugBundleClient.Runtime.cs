@@ -154,6 +154,12 @@ public sealed partial class DebugBundleClient
         _remoteConfigTimer = new Timer(_ => _ = RefreshRemoteConfigAsync(CancellationToken.None), null, interval, Timeout.InfiniteTimeSpan);
     }
 
+    private static TimeSpan BoundedRetryAfter(TimeSpan? hint, int failures)
+    {
+        if (hint == null || hint < TimeSpan.Zero) return DefaultBackoff(failures);
+        return hint > TimeSpan.FromMinutes(5) ? TimeSpan.FromMinutes(5) : hint.Value;
+    }
+
     private static TimeSpan DefaultBackoff(int failures)
     {
         var seconds = Math.Min(300, Math.Pow(2, Math.Min(failures, 8)));
