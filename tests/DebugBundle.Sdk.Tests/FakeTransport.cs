@@ -9,13 +9,15 @@ internal sealed class FakeTransport : IEventTransport
 
     public List<IReadOnlyList<DebugBundleEventEnvelope>> Batches { get; } = new();
     public int Calls { get; private set; }
+    public Func<int, CancellationToken, Task>? BeforeResponse { get; set; }
 
     public void EnqueueResponse(EventTransportResult response) => _responses.Enqueue(response);
 
-    public Task<EventTransportResult> SendAsync(EventTransportRequest request, CancellationToken cancellationToken = default)
+    public async Task<EventTransportResult> SendAsync(EventTransportRequest request, CancellationToken cancellationToken = default)
     {
         Calls++;
         Batches.Add(request.Events.ToArray());
-        return Task.FromResult(_responses.Count > 0 ? _responses.Dequeue() : new EventTransportResult { StatusCode = 202 });
+        if (BeforeResponse is not null) await BeforeResponse(Calls, cancellationToken);
+        return _responses.Count > 0 ? _responses.Dequeue() : new EventTransportResult { StatusCode = 202 };
     }
 }

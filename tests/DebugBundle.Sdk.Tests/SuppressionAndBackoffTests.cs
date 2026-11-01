@@ -136,6 +136,12 @@ public sealed class SuppressionAndBackoffTests
     public async Task Acknowledgement_Retries_Only_The_Indexed_Retryable_Rejection()
     {
         var transport = new FakeTransport();
+        // Hold the automatic retry response so the intermediate degraded status
+        // is observable independently of the runner's timer scheduling.
+        var retryResponse = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        transport.BeforeResponse = (call, cancellation) => call == 2
+            ? retryResponse.Task.WaitAsync(cancellation)
+            : Task.CompletedTask;
         transport.EnqueueResponse(new EventTransportResult
         {
             StatusCode = 202,
@@ -149,7 +155,7 @@ public sealed class SuppressionAndBackoffTests
             StatusCode = 202,
             Body = """{"accepted":1,"rejected":0,"errors":[]}"""
         });
-        var client = CreateClient(transport);
+        using var client = CreateClient(transport);
         client.CaptureMessage("accepted", DebugBundleLogLevel.Warning);
         client.CaptureMessage("retry", DebugBundleLogLevel.Warning);
 
@@ -157,6 +163,7 @@ public sealed class SuppressionAndBackoffTests
 
         Assert.Equal(DebugBundleStatus.Degraded, client.Status);
         Assert.NotNull(client.LastEventAt);
+        retryResponse.SetResult();
         await Task.Delay(20);
         await client.FlushAsync();
 
