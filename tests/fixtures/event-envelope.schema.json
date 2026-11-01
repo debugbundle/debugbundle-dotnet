@@ -1,4 +1,5 @@
 {
+  "$schema": "http://json-schema.org/draft-07/schema#",
   "anyOf": [
     {
       "type": "object",
@@ -143,7 +144,8 @@
                           "const": "page"
                         },
                         "page_id": {
-                          "$ref": "#/anyOf/0/properties/payload/anyOf/0/properties/failure_ref"
+                          "type": "string",
+                          "format": "uuid"
                         }
                       },
                       "required": [
@@ -160,7 +162,8 @@
                           "const": "operation"
                         },
                         "operation_id": {
-                          "$ref": "#/anyOf/0/properties/payload/anyOf/0/properties/failure_ref"
+                          "type": "string",
+                          "format": "uuid"
                         }
                       },
                       "required": [
@@ -172,7 +175,8 @@
                   ]
                 },
                 "attempt_id": {
-                  "$ref": "#/anyOf/0/properties/payload/anyOf/0/properties/failure_ref"
+                  "type": "string",
+                  "format": "uuid"
                 },
                 "state": {
                   "type": "string",
@@ -220,10 +224,48 @@
                   "const": "resource_observation"
                 },
                 "failure_ref": {
-                  "$ref": "#/anyOf/0/properties/payload/anyOf/0/properties/failure_ref"
+                  "type": "string",
+                  "format": "uuid"
                 },
                 "scope": {
-                  "$ref": "#/anyOf/0/properties/payload/anyOf/0/properties/scope"
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "page"
+                        },
+                        "page_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "page_id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "operation"
+                        },
+                        "operation_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "operation_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
                 },
                 "source_event_id": {
                   "type": "string",
@@ -237,6 +279,8 @@
                       "const": 1
                     },
                     "items": {
+                      "minItems": 1,
+                      "maxItems": 5,
                       "type": "array",
                       "items": {
                         "anyOf": [
@@ -300,7 +344,8 @@
                                 "anyOf": [
                                   {
                                     "type": "integer",
-                                    "minimum": 0
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
                                   },
                                   {
                                     "type": "null"
@@ -333,7 +378,8 @@
                               "source_url": {
                                 "anyOf": [
                                   {
-                                    "$ref": "#/anyOf/0/properties/payload/anyOf/1/properties/observations/properties/items/items/anyOf/0/properties/source_url/anyOf/0"
+                                    "type": "string",
+                                    "maxLength": 2048
                                   },
                                   {
                                     "type": "null"
@@ -375,9 +421,7 @@
                             "additionalProperties": false
                           }
                         ]
-                      },
-                      "minItems": 1,
-                      "maxItems": 5
+                      }
                     }
                   },
                   "required": [
@@ -416,38 +460,117 @@
       "type": "object",
       "properties": {
         "schema_version": {
-          "$ref": "#/anyOf/0/properties/schema_version"
+          "type": "string",
+          "minLength": 1
         },
         "event_id": {
-          "$ref": "#/anyOf/0/properties/event_id"
+          "type": "string",
+          "format": "uuid"
         },
         "event_type": {
           "type": "string",
           "const": "backend_exception"
         },
         "project_token": {
-          "$ref": "#/anyOf/0/properties/project_token"
+          "type": "string",
+          "minLength": 1
         },
         "project_id": {
-          "$ref": "#/anyOf/0/properties/project_id"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "sdk_name": {
-          "$ref": "#/anyOf/0/properties/sdk_name"
+          "type": "string",
+          "minLength": 1
         },
         "sdk_version": {
-          "$ref": "#/anyOf/0/properties/sdk_version"
+          "type": "string",
+          "minLength": 1
         },
         "service": {
-          "$ref": "#/anyOf/0/properties/service"
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "runtime": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "framework": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "environment": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "name",
+            "environment"
+          ],
+          "additionalProperties": false
         },
         "occurred_at": {
-          "$ref": "#/anyOf/0/properties/occurred_at"
+          "type": "string",
+          "format": "date-time"
         },
         "correlation": {
-          "$ref": "#/anyOf/0/properties/correlation"
+          "type": "object",
+          "properties": {
+            "request_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "trace_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "session_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "user_id_hash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
         },
         "context": {
-          "$ref": "#/anyOf/0/properties/context"
+          "type": "object",
+          "additionalProperties": {}
         },
         "payload": {
           "type": "object",
@@ -508,7 +631,8 @@
               "properties": {
                 "status_code": {
                   "type": "integer",
-                  "minimum": 0
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "headers": {
                   "type": "object",
@@ -554,7 +678,8 @@
                   "anyOf": [
                     {
                       "type": "integer",
-                      "minimum": 0
+                      "minimum": 0,
+                      "maximum": 9007199254740991
                     },
                     {
                       "type": "null"
@@ -595,16 +720,10 @@
                   ]
                 },
                 "thread_id": {
-                  "anyOf": [
-                    {
-                      "type": [
-                        "string",
-                        "number"
-                      ]
-                    },
-                    {
-                      "type": "null"
-                    }
+                  "type": [
+                    "string",
+                    "number",
+                    "null"
                   ]
                 },
                 "framework_version": {
@@ -792,12 +911,16 @@
                   "maximum": 7
                 },
                 "nodes": {
+                  "minItems": 1,
+                  "maxItems": 8,
                   "type": "array",
                   "items": {
                     "type": "object",
                     "properties": {
                       "id": {
-                        "$ref": "#/anyOf/1/properties/payload/properties/exception_evidence/properties/root_id"
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 7
                       },
                       "name": {
                         "type": "string",
@@ -840,6 +963,7 @@
                         ]
                       },
                       "frames": {
+                        "maxItems": 32,
                         "type": "array",
                         "items": {
                           "type": "object",
@@ -870,7 +994,8 @@
                               "anyOf": [
                                 {
                                   "type": "integer",
-                                  "exclusiveMinimum": 0
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
                                 },
                                 {
                                   "type": "null"
@@ -881,7 +1006,8 @@
                               "anyOf": [
                                 {
                                   "type": "integer",
-                                  "minimum": 0
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
                                 },
                                 {
                                   "type": "null"
@@ -906,10 +1032,10 @@
                             "classification"
                           ],
                           "additionalProperties": false
-                        },
-                        "maxItems": 32
+                        }
                       },
                       "relationships": {
+                        "maxItems": 5,
                         "type": "array",
                         "items": {
                           "type": "object",
@@ -924,7 +1050,9 @@
                               ]
                             },
                             "target_id": {
-                              "$ref": "#/anyOf/1/properties/payload/properties/exception_evidence/properties/root_id"
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 7
                             }
                           },
                           "required": [
@@ -932,8 +1060,7 @@
                             "target_id"
                           ],
                           "additionalProperties": false
-                        },
-                        "maxItems": 5
+                        }
                       }
                     },
                     "required": [
@@ -947,9 +1074,7 @@
                       "relationships"
                     ],
                     "additionalProperties": false
-                  },
-                  "minItems": 1,
-                  "maxItems": 8
+                  }
                 },
                 "truncated": {
                   "type": "boolean"
@@ -1069,38 +1194,117 @@
       "type": "object",
       "properties": {
         "schema_version": {
-          "$ref": "#/anyOf/0/properties/schema_version"
+          "type": "string",
+          "minLength": 1
         },
         "event_id": {
-          "$ref": "#/anyOf/0/properties/event_id"
+          "type": "string",
+          "format": "uuid"
         },
         "event_type": {
           "type": "string",
           "const": "request_event"
         },
         "project_token": {
-          "$ref": "#/anyOf/0/properties/project_token"
+          "type": "string",
+          "minLength": 1
         },
         "project_id": {
-          "$ref": "#/anyOf/0/properties/project_id"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "sdk_name": {
-          "$ref": "#/anyOf/0/properties/sdk_name"
+          "type": "string",
+          "minLength": 1
         },
         "sdk_version": {
-          "$ref": "#/anyOf/0/properties/sdk_version"
+          "type": "string",
+          "minLength": 1
         },
         "service": {
-          "$ref": "#/anyOf/0/properties/service"
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "runtime": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "framework": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "environment": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "name",
+            "environment"
+          ],
+          "additionalProperties": false
         },
         "occurred_at": {
-          "$ref": "#/anyOf/0/properties/occurred_at"
+          "type": "string",
+          "format": "date-time"
         },
         "correlation": {
-          "$ref": "#/anyOf/0/properties/correlation"
+          "type": "object",
+          "properties": {
+            "request_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "trace_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "session_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "user_id_hash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
         },
         "context": {
-          "$ref": "#/anyOf/0/properties/context"
+          "type": "object",
+          "additionalProperties": {}
         },
         "payload": {
           "anyOf": [
@@ -1133,7 +1337,8 @@
                 },
                 "response_status": {
                   "type": "integer",
-                  "minimum": 0
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "duration_ms": {
                   "type": "number",
@@ -1170,35 +1375,54 @@
               "type": "object",
               "properties": {
                 "method": {
-                  "$ref": "#/anyOf/2/properties/payload/anyOf/0/properties/method"
+                  "type": "string",
+                  "minLength": 1
                 },
                 "path": {
-                  "$ref": "#/anyOf/2/properties/payload/anyOf/0/properties/path"
+                  "type": "string",
+                  "minLength": 1
                 },
                 "query": {
-                  "$ref": "#/anyOf/2/properties/payload/anyOf/0/properties/query"
+                  "type": "object",
+                  "additionalProperties": {}
                 },
                 "headers": {
-                  "$ref": "#/anyOf/2/properties/payload/anyOf/0/properties/headers"
+                  "type": "object",
+                  "additionalProperties": {}
                 },
                 "body": {
-                  "$ref": "#/anyOf/2/properties/payload/anyOf/0/properties/body"
+                  "anyOf": [
+                    {},
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "response_status": {
-                  "$ref": "#/anyOf/2/properties/payload/anyOf/0/properties/response_status"
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "duration_ms": {
-                  "$ref": "#/anyOf/2/properties/payload/anyOf/0/properties/duration_ms"
+                  "type": "number",
+                  "minimum": 0
                 },
                 "route_template": {
-                  "$ref": "#/anyOf/2/properties/payload/anyOf/0/properties/route_template"
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "response_headers": {
-                  "$ref": "#/anyOf/2/properties/payload/anyOf/0/properties/response_headers"
+                  "type": "object",
+                  "additionalProperties": {}
                 },
-                "response_body": {
-                  "$ref": "#/anyOf/2/properties/payload/anyOf/0/properties/response_body"
-                },
+                "response_body": {},
                 "device": {
                   "type": "object",
                   "properties": {
@@ -1244,11 +1468,13 @@
                       "properties": {
                         "width": {
                           "type": "integer",
-                          "minimum": 0
+                          "minimum": 0,
+                          "maximum": 9007199254740991
                         },
                         "height": {
                           "type": "integer",
-                          "minimum": 0
+                          "minimum": 0,
+                          "maximum": 9007199254740991
                         }
                       },
                       "required": [
@@ -1262,11 +1488,13 @@
                       "properties": {
                         "width": {
                           "type": "integer",
-                          "minimum": 0
+                          "minimum": 0,
+                          "maximum": 9007199254740991
                         },
                         "height": {
                           "type": "integer",
-                          "minimum": 0
+                          "minimum": 0,
+                          "maximum": 9007199254740991
                         }
                       },
                       "required": [
@@ -1341,7 +1569,8 @@
                       "anyOf": [
                         {
                           "type": "integer",
-                          "minimum": 0
+                          "minimum": 0,
+                          "maximum": 9007199254740991
                         },
                         {
                           "type": "null"
@@ -1387,7 +1616,8 @@
                       "anyOf": [
                         {
                           "type": "integer",
-                          "minimum": 0
+                          "minimum": 0,
+                          "maximum": 9007199254740991
                         },
                         {
                           "type": "null"
@@ -1398,7 +1628,8 @@
                       "anyOf": [
                         {
                           "type": "integer",
-                          "minimum": 0
+                          "minimum": 0,
+                          "maximum": 9007199254740991
                         },
                         {
                           "type": "null"
@@ -1457,38 +1688,117 @@
       "type": "object",
       "properties": {
         "schema_version": {
-          "$ref": "#/anyOf/0/properties/schema_version"
+          "type": "string",
+          "minLength": 1
         },
         "event_id": {
-          "$ref": "#/anyOf/0/properties/event_id"
+          "type": "string",
+          "format": "uuid"
         },
         "event_type": {
           "type": "string",
           "const": "log_event"
         },
         "project_token": {
-          "$ref": "#/anyOf/0/properties/project_token"
+          "type": "string",
+          "minLength": 1
         },
         "project_id": {
-          "$ref": "#/anyOf/0/properties/project_id"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "sdk_name": {
-          "$ref": "#/anyOf/0/properties/sdk_name"
+          "type": "string",
+          "minLength": 1
         },
         "sdk_version": {
-          "$ref": "#/anyOf/0/properties/sdk_version"
+          "type": "string",
+          "minLength": 1
         },
         "service": {
-          "$ref": "#/anyOf/0/properties/service"
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "runtime": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "framework": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "environment": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "name",
+            "environment"
+          ],
+          "additionalProperties": false
         },
         "occurred_at": {
-          "$ref": "#/anyOf/0/properties/occurred_at"
+          "type": "string",
+          "format": "date-time"
         },
         "correlation": {
-          "$ref": "#/anyOf/0/properties/correlation"
+          "type": "object",
+          "properties": {
+            "request_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "trace_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "session_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "user_id_hash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
         },
         "context": {
-          "$ref": "#/anyOf/0/properties/context"
+          "type": "object",
+          "additionalProperties": {}
         },
         "payload": {
           "anyOf": [
@@ -1519,16 +1829,250 @@
               "type": "object",
               "properties": {
                 "level": {
-                  "$ref": "#/anyOf/3/properties/payload/anyOf/0/properties/level"
+                  "type": "string",
+                  "minLength": 1
                 },
                 "message": {
-                  "$ref": "#/anyOf/3/properties/payload/anyOf/0/properties/message"
+                  "type": "string",
+                  "minLength": 1
                 },
                 "attributes": {
-                  "$ref": "#/anyOf/3/properties/payload/anyOf/0/properties/attributes"
+                  "type": "object",
+                  "additionalProperties": {}
                 },
                 "device": {
-                  "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device"
+                  "type": "object",
+                  "properties": {
+                    "user_agent": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "os": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "version": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "version"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "device_type": {
+                      "type": "string",
+                      "enum": [
+                        "desktop",
+                        "mobile",
+                        "tablet",
+                        "unknown"
+                      ]
+                    },
+                    "screen": {
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "width",
+                        "height"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "viewport": {
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "width",
+                        "height"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "device_pixel_ratio": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "touch_capable": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "language": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "connection_type": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "color_scheme_preference": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "light",
+                            "dark",
+                            "no-preference"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "app_version": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "build_number": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "release_channel": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "api_level": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "manufacturer": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "model": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "timezone": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "battery_level": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "battery_charging": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "free_disk_bytes": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "free_memory_bytes": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "jailbroken": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "user_agent",
+                    "os",
+                    "device_type",
+                    "screen",
+                    "viewport",
+                    "device_pixel_ratio",
+                    "touch_capable",
+                    "language",
+                    "connection_type",
+                    "color_scheme_preference"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -1558,38 +2102,117 @@
       "type": "object",
       "properties": {
         "schema_version": {
-          "$ref": "#/anyOf/0/properties/schema_version"
+          "type": "string",
+          "minLength": 1
         },
         "event_id": {
-          "$ref": "#/anyOf/0/properties/event_id"
+          "type": "string",
+          "format": "uuid"
         },
         "event_type": {
           "type": "string",
           "const": "frontend_breadcrumb"
         },
         "project_token": {
-          "$ref": "#/anyOf/0/properties/project_token"
+          "type": "string",
+          "minLength": 1
         },
         "project_id": {
-          "$ref": "#/anyOf/0/properties/project_id"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "sdk_name": {
-          "$ref": "#/anyOf/0/properties/sdk_name"
+          "type": "string",
+          "minLength": 1
         },
         "sdk_version": {
-          "$ref": "#/anyOf/0/properties/sdk_version"
+          "type": "string",
+          "minLength": 1
         },
         "service": {
-          "$ref": "#/anyOf/0/properties/service"
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "runtime": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "framework": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "environment": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "name",
+            "environment"
+          ],
+          "additionalProperties": false
         },
         "occurred_at": {
-          "$ref": "#/anyOf/0/properties/occurred_at"
+          "type": "string",
+          "format": "date-time"
         },
         "correlation": {
-          "$ref": "#/anyOf/0/properties/correlation"
+          "type": "object",
+          "properties": {
+            "request_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "trace_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "session_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "user_id_hash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
         },
         "context": {
-          "$ref": "#/anyOf/0/properties/context"
+          "type": "object",
+          "additionalProperties": {}
         },
         "payload": {
           "anyOf": [
@@ -1651,7 +2274,238 @@
                   "additionalProperties": {}
                 },
                 "device": {
-                  "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device"
+                  "type": "object",
+                  "properties": {
+                    "user_agent": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "os": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "version": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "version"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "device_type": {
+                      "type": "string",
+                      "enum": [
+                        "desktop",
+                        "mobile",
+                        "tablet",
+                        "unknown"
+                      ]
+                    },
+                    "screen": {
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "width",
+                        "height"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "viewport": {
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "width",
+                        "height"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "device_pixel_ratio": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "touch_capable": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "language": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "connection_type": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "color_scheme_preference": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "light",
+                            "dark",
+                            "no-preference"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "app_version": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "build_number": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "release_channel": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "api_level": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "manufacturer": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "model": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "timezone": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "battery_level": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "battery_charging": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "free_disk_bytes": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "free_memory_bytes": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "jailbroken": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "user_agent",
+                    "os",
+                    "device_type",
+                    "screen",
+                    "viewport",
+                    "device_pixel_ratio",
+                    "touch_capable",
+                    "language",
+                    "connection_type",
+                    "color_scheme_preference"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -1680,38 +2534,117 @@
       "type": "object",
       "properties": {
         "schema_version": {
-          "$ref": "#/anyOf/0/properties/schema_version"
+          "type": "string",
+          "minLength": 1
         },
         "event_id": {
-          "$ref": "#/anyOf/0/properties/event_id"
+          "type": "string",
+          "format": "uuid"
         },
         "event_type": {
           "type": "string",
           "const": "frontend_exception"
         },
         "project_token": {
-          "$ref": "#/anyOf/0/properties/project_token"
+          "type": "string",
+          "minLength": 1
         },
         "project_id": {
-          "$ref": "#/anyOf/0/properties/project_id"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "sdk_name": {
-          "$ref": "#/anyOf/0/properties/sdk_name"
+          "type": "string",
+          "minLength": 1
         },
         "sdk_version": {
-          "$ref": "#/anyOf/0/properties/sdk_version"
+          "type": "string",
+          "minLength": 1
         },
         "service": {
-          "$ref": "#/anyOf/0/properties/service"
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "runtime": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "framework": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "environment": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "name",
+            "environment"
+          ],
+          "additionalProperties": false
         },
         "occurred_at": {
-          "$ref": "#/anyOf/0/properties/occurred_at"
+          "type": "string",
+          "format": "date-time"
         },
         "correlation": {
-          "$ref": "#/anyOf/0/properties/correlation"
+          "type": "object",
+          "properties": {
+            "request_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "trace_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "session_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "user_id_hash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
         },
         "context": {
-          "$ref": "#/anyOf/0/properties/context"
+          "type": "object",
+          "additionalProperties": {}
         },
         "payload": {
           "type": "object",
@@ -1765,13 +2698,29 @@
                     "type": "object",
                     "properties": {
                       "breadcrumb_type": {
-                        "$ref": "#/anyOf/4/properties/payload/anyOf/0/properties/breadcrumb_type"
+                        "type": "string",
+                        "enum": [
+                          "route_change",
+                          "click",
+                          "form_submit",
+                          "console_log",
+                          "network_request"
+                        ]
                       },
                       "route": {
-                        "$ref": "#/anyOf/4/properties/payload/anyOf/0/properties/route"
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "data": {
-                        "$ref": "#/anyOf/4/properties/payload/anyOf/0/properties/data"
+                        "type": "object",
+                        "additionalProperties": {}
                       },
                       "ts": {
                         "type": "string",
@@ -1830,34 +2779,125 @@
                       "type": "object",
                       "properties": {
                         "user_agent": {
-                          "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device/properties/user_agent"
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         },
                         "os": {
-                          "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device/properties/os"
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "version": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "version"
+                          ],
+                          "additionalProperties": false
                         },
                         "device_type": {
-                          "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device/properties/device_type"
+                          "type": "string",
+                          "enum": [
+                            "desktop",
+                            "mobile",
+                            "tablet",
+                            "unknown"
+                          ]
                         },
                         "screen": {
-                          "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device/properties/screen"
+                          "type": "object",
+                          "properties": {
+                            "width": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "height": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "width",
+                            "height"
+                          ],
+                          "additionalProperties": false
                         },
                         "viewport": {
-                          "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device/properties/viewport"
+                          "type": "object",
+                          "properties": {
+                            "width": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "height": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "width",
+                            "height"
+                          ],
+                          "additionalProperties": false
                         },
                         "device_pixel_ratio": {
-                          "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device/properties/device_pixel_ratio"
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "exclusiveMinimum": 0
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "touch_capable": {
-                          "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device/properties/touch_capable"
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
                         },
                         "language": {
-                          "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device/properties/language"
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         },
                         "connection_type": {
-                          "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device/properties/connection_type"
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         },
                         "color_scheme_preference": {
-                          "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device/properties/color_scheme_preference"
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "light",
+                                "dark",
+                                "no-preference"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         }
                       },
                       "required": [
@@ -1875,7 +2915,238 @@
                       "additionalProperties": false
                     },
                     {
-                      "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device"
+                      "type": "object",
+                      "properties": {
+                        "user_agent": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "os": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "version": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "version"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "device_type": {
+                          "type": "string",
+                          "enum": [
+                            "desktop",
+                            "mobile",
+                            "tablet",
+                            "unknown"
+                          ]
+                        },
+                        "screen": {
+                          "type": "object",
+                          "properties": {
+                            "width": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "height": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "width",
+                            "height"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "viewport": {
+                          "type": "object",
+                          "properties": {
+                            "width": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "height": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "width",
+                            "height"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "device_pixel_ratio": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "exclusiveMinimum": 0
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "touch_capable": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "language": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "connection_type": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "color_scheme_preference": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "light",
+                                "dark",
+                                "no-preference"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "app_version": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "build_number": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "release_channel": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "api_level": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "manufacturer": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "model": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "timezone": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "battery_level": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "battery_charging": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "free_disk_bytes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "free_memory_bytes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "jailbroken": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "user_agent",
+                        "os",
+                        "device_type",
+                        "screen",
+                        "viewport",
+                        "device_pixel_ratio",
+                        "touch_capable",
+                        "language",
+                        "connection_type",
+                        "color_scheme_preference"
+                      ],
+                      "additionalProperties": false
                     }
                   ]
                 },
@@ -1910,7 +3181,8 @@
                   "anyOf": [
                     {
                       "type": "integer",
-                      "minimum": 0
+                      "minimum": 0,
+                      "maximum": 9007199254740991
                     },
                     {
                       "type": "null"
@@ -1921,7 +3193,8 @@
                   "anyOf": [
                     {
                       "type": "integer",
-                      "minimum": 0
+                      "minimum": 0,
+                      "maximum": 9007199254740991
                     },
                     {
                       "type": "null"
@@ -2115,13 +3388,440 @@
               ]
             },
             "probe_data": {
-              "$ref": "#/anyOf/1/properties/payload/properties/probe_data"
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "number",
+                  "const": 1
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "data": {
+                        "type": "object",
+                        "additionalProperties": {}
+                      },
+                      "timestamp": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "activation_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "label",
+                      "data",
+                      "timestamp",
+                      "activation_id"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "version",
+                "items"
+              ],
+              "additionalProperties": false
             },
             "exception_evidence": {
-              "$ref": "#/anyOf/1/properties/payload/properties/exception_evidence"
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "number",
+                  "const": 1
+                },
+                "runtime": {
+                  "type": "string",
+                  "enum": [
+                    "node",
+                    "browser",
+                    "python",
+                    "php",
+                    "jvm",
+                    "go",
+                    "ruby",
+                    "dotnet",
+                    "android",
+                    "swift",
+                    "react_native",
+                    "unknown"
+                  ]
+                },
+                "root_id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 7
+                },
+                "nodes": {
+                  "minItems": 1,
+                  "maxItems": 8,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 7
+                      },
+                      "name": {
+                        "type": "string",
+                        "maxLength": 256
+                      },
+                      "message": {
+                        "type": "string",
+                        "maxLength": 2048
+                      },
+                      "stack": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 16384
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "trace_origin": {
+                        "type": "string",
+                        "enum": [
+                          "throw",
+                          "native_fatal",
+                          "capture",
+                          "runtime_reported",
+                          "unavailable",
+                          "unknown"
+                        ]
+                      },
+                      "parsing_status": {
+                        "type": "string",
+                        "enum": [
+                          "parsed",
+                          "partial",
+                          "unparsed",
+                          "unavailable",
+                          "truncated"
+                        ]
+                      },
+                      "frames": {
+                        "maxItems": 32,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "function": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 256
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "file": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 2048
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "line": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "column": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "classification": {
+                              "type": "string",
+                              "enum": [
+                                "application",
+                                "framework",
+                                "sdk",
+                                "unknown"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "function",
+                            "file",
+                            "line",
+                            "column",
+                            "classification"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "relationships": {
+                        "maxItems": 5,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "cause",
+                                "context",
+                                "aggregate",
+                                "suppressed"
+                              ]
+                            },
+                            "target_id": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 7
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "target_id"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "message",
+                      "stack",
+                      "trace_origin",
+                      "parsing_status",
+                      "frames",
+                      "relationships"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "truncated": {
+                  "type": "boolean"
+                },
+                "unavailable_reason": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "unknown",
+                        "unsupported",
+                        "unsafe",
+                        "budget_exceeded"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "version",
+                "runtime",
+                "root_id",
+                "nodes",
+                "truncated",
+                "unavailable_reason"
+              ],
+              "additionalProperties": false
             },
             "resource_observations": {
-              "$ref": "#/anyOf/0/properties/payload/anyOf/1/properties/observations"
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "number",
+                  "const": 1
+                },
+                "items": {
+                  "minItems": 1,
+                  "maxItems": 5,
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "timing"
+                          },
+                          "observed_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "source_url": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2048
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "availability": {
+                            "type": "string",
+                            "enum": [
+                              "observed",
+                              "unsupported",
+                              "no_match",
+                              "withheld",
+                              "ambiguous",
+                              "unknown"
+                            ]
+                          },
+                          "response_status": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 100,
+                                "maximum": 599
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "duration_ms": {
+                            "anyOf": [
+                              {
+                                "type": "number",
+                                "minimum": 0
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "transfer_size_bytes": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "observed_at",
+                          "source_url",
+                          "availability",
+                          "response_status",
+                          "duration_ms",
+                          "transfer_size_bytes"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "csp"
+                          },
+                          "observed_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "source_url": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2048
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "effective_directive": {
+                            "type": "string",
+                            "pattern": "^[a-z-]{1,64}$"
+                          },
+                          "disposition": {
+                            "type": "string",
+                            "enum": [
+                              "enforce",
+                              "report"
+                            ]
+                          },
+                          "document_status_code": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 100,
+                                "maximum": 599
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "observed_at",
+                          "source_url",
+                          "effective_directive",
+                          "disposition",
+                          "document_status_code"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "version",
+                "items"
+              ],
+              "additionalProperties": false
             }
           },
           "required": [
@@ -2148,38 +3848,117 @@
       "type": "object",
       "properties": {
         "schema_version": {
-          "$ref": "#/anyOf/0/properties/schema_version"
+          "type": "string",
+          "minLength": 1
         },
         "event_id": {
-          "$ref": "#/anyOf/0/properties/event_id"
+          "type": "string",
+          "format": "uuid"
         },
         "event_type": {
           "type": "string",
           "const": "deploy_metadata"
         },
         "project_token": {
-          "$ref": "#/anyOf/0/properties/project_token"
+          "type": "string",
+          "minLength": 1
         },
         "project_id": {
-          "$ref": "#/anyOf/0/properties/project_id"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "sdk_name": {
-          "$ref": "#/anyOf/0/properties/sdk_name"
+          "type": "string",
+          "minLength": 1
         },
         "sdk_version": {
-          "$ref": "#/anyOf/0/properties/sdk_version"
+          "type": "string",
+          "minLength": 1
         },
         "service": {
-          "$ref": "#/anyOf/0/properties/service"
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "runtime": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "framework": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "environment": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "name",
+            "environment"
+          ],
+          "additionalProperties": false
         },
         "occurred_at": {
-          "$ref": "#/anyOf/0/properties/occurred_at"
+          "type": "string",
+          "format": "date-time"
         },
         "correlation": {
-          "$ref": "#/anyOf/0/properties/correlation"
+          "type": "object",
+          "properties": {
+            "request_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "trace_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "session_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "user_id_hash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
         },
         "context": {
-          "$ref": "#/anyOf/0/properties/context"
+          "type": "object",
+          "additionalProperties": {}
         },
         "payload": {
           "type": "object",
@@ -2231,38 +4010,117 @@
       "type": "object",
       "properties": {
         "schema_version": {
-          "$ref": "#/anyOf/0/properties/schema_version"
+          "type": "string",
+          "minLength": 1
         },
         "event_id": {
-          "$ref": "#/anyOf/0/properties/event_id"
+          "type": "string",
+          "format": "uuid"
         },
         "event_type": {
           "type": "string",
           "const": "error_suppressed"
         },
         "project_token": {
-          "$ref": "#/anyOf/0/properties/project_token"
+          "type": "string",
+          "minLength": 1
         },
         "project_id": {
-          "$ref": "#/anyOf/0/properties/project_id"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "sdk_name": {
-          "$ref": "#/anyOf/0/properties/sdk_name"
+          "type": "string",
+          "minLength": 1
         },
         "sdk_version": {
-          "$ref": "#/anyOf/0/properties/sdk_version"
+          "type": "string",
+          "minLength": 1
         },
         "service": {
-          "$ref": "#/anyOf/0/properties/service"
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "runtime": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "framework": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "environment": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "name",
+            "environment"
+          ],
+          "additionalProperties": false
         },
         "occurred_at": {
-          "$ref": "#/anyOf/0/properties/occurred_at"
+          "type": "string",
+          "format": "date-time"
         },
         "correlation": {
-          "$ref": "#/anyOf/0/properties/correlation"
+          "type": "object",
+          "properties": {
+            "request_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "trace_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "session_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "user_id_hash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
         },
         "context": {
-          "$ref": "#/anyOf/0/properties/context"
+          "type": "object",
+          "additionalProperties": {}
         },
         "payload": {
           "anyOf": [
@@ -2275,11 +4133,13 @@
                 },
                 "suppressed_count": {
                   "type": "integer",
-                  "minimum": 0
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "window_seconds": {
                   "type": "integer",
-                  "exclusiveMinimum": 0
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "first_seen": {
                   "type": "string",
@@ -2311,28 +4171,268 @@
               "type": "object",
               "properties": {
                 "fingerprint": {
-                  "$ref": "#/anyOf/7/properties/payload/anyOf/0/properties/fingerprint"
+                  "type": "string",
+                  "minLength": 1
                 },
                 "suppressed_count": {
-                  "$ref": "#/anyOf/7/properties/payload/anyOf/0/properties/suppressed_count"
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "window_seconds": {
-                  "$ref": "#/anyOf/7/properties/payload/anyOf/0/properties/window_seconds"
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "first_seen": {
-                  "$ref": "#/anyOf/7/properties/payload/anyOf/0/properties/first_seen"
+                  "type": "string",
+                  "format": "date-time"
                 },
                 "last_seen": {
-                  "$ref": "#/anyOf/7/properties/payload/anyOf/0/properties/last_seen"
+                  "type": "string",
+                  "format": "date-time"
                 },
                 "reason": {
-                  "$ref": "#/anyOf/7/properties/payload/anyOf/0/properties/reason"
+                  "type": "string",
+                  "const": "queue_pressure"
                 },
                 "level": {
-                  "$ref": "#/anyOf/7/properties/payload/anyOf/0/properties/level"
+                  "type": "string",
+                  "minLength": 1
                 },
                 "device": {
-                  "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device"
+                  "type": "object",
+                  "properties": {
+                    "user_agent": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "os": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "version": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "version"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "device_type": {
+                      "type": "string",
+                      "enum": [
+                        "desktop",
+                        "mobile",
+                        "tablet",
+                        "unknown"
+                      ]
+                    },
+                    "screen": {
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "width",
+                        "height"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "viewport": {
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "width",
+                        "height"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "device_pixel_ratio": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "touch_capable": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "language": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "connection_type": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "color_scheme_preference": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "light",
+                            "dark",
+                            "no-preference"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "app_version": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "build_number": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "release_channel": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "api_level": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "manufacturer": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "model": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "timezone": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "battery_level": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "battery_charging": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "free_disk_bytes": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "free_memory_bytes": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "jailbroken": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "user_agent",
+                    "os",
+                    "device_type",
+                    "screen",
+                    "viewport",
+                    "device_pixel_ratio",
+                    "touch_capable",
+                    "language",
+                    "connection_type",
+                    "color_scheme_preference"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -2364,38 +4464,117 @@
       "type": "object",
       "properties": {
         "schema_version": {
-          "$ref": "#/anyOf/0/properties/schema_version"
+          "type": "string",
+          "minLength": 1
         },
         "event_id": {
-          "$ref": "#/anyOf/0/properties/event_id"
+          "type": "string",
+          "format": "uuid"
         },
         "event_type": {
           "type": "string",
           "const": "probe_event"
         },
         "project_token": {
-          "$ref": "#/anyOf/0/properties/project_token"
+          "type": "string",
+          "minLength": 1
         },
         "project_id": {
-          "$ref": "#/anyOf/0/properties/project_id"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "sdk_name": {
-          "$ref": "#/anyOf/0/properties/sdk_name"
+          "type": "string",
+          "minLength": 1
         },
         "sdk_version": {
-          "$ref": "#/anyOf/0/properties/sdk_version"
+          "type": "string",
+          "minLength": 1
         },
         "service": {
-          "$ref": "#/anyOf/0/properties/service"
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "runtime": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "framework": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "environment": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "name",
+            "environment"
+          ],
+          "additionalProperties": false
         },
         "occurred_at": {
-          "$ref": "#/anyOf/0/properties/occurred_at"
+          "type": "string",
+          "format": "date-time"
         },
         "correlation": {
-          "$ref": "#/anyOf/0/properties/correlation"
+          "type": "object",
+          "properties": {
+            "request_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "trace_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "session_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "user_id_hash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
         },
         "context": {
-          "$ref": "#/anyOf/0/properties/context"
+          "type": "object",
+          "additionalProperties": {}
         },
         "payload": {
           "anyOf": [
@@ -2438,19 +4617,261 @@
               "type": "object",
               "properties": {
                 "label": {
-                  "$ref": "#/anyOf/8/properties/payload/anyOf/0/properties/label"
+                  "type": "string",
+                  "minLength": 1
                 },
                 "data": {
-                  "$ref": "#/anyOf/8/properties/payload/anyOf/0/properties/data"
+                  "type": "object",
+                  "additionalProperties": {}
                 },
                 "activation_id": {
-                  "$ref": "#/anyOf/8/properties/payload/anyOf/0/properties/activation_id"
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "probe_label_pattern": {
-                  "$ref": "#/anyOf/8/properties/payload/anyOf/0/properties/probe_label_pattern"
+                  "type": "string",
+                  "minLength": 1
                 },
                 "device": {
-                  "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device"
+                  "type": "object",
+                  "properties": {
+                    "user_agent": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "os": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "version": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "version"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "device_type": {
+                      "type": "string",
+                      "enum": [
+                        "desktop",
+                        "mobile",
+                        "tablet",
+                        "unknown"
+                      ]
+                    },
+                    "screen": {
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "width",
+                        "height"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "viewport": {
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "width",
+                        "height"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "device_pixel_ratio": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "touch_capable": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "language": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "connection_type": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "color_scheme_preference": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "light",
+                            "dark",
+                            "no-preference"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "app_version": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "build_number": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "release_channel": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "api_level": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "manufacturer": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "model": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "timezone": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "battery_level": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "battery_charging": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "free_disk_bytes": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "free_memory_bytes": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "jailbroken": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "user_agent",
+                    "os",
+                    "device_type",
+                    "screen",
+                    "viewport",
+                    "device_pixel_ratio",
+                    "touch_capable",
+                    "language",
+                    "connection_type",
+                    "color_scheme_preference"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -2478,7 +4899,6 @@
       "additionalProperties": false
     }
   ],
-  "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://debugbundle.com/schemas/event-envelope.json",
   "$comment": "Generated by scripts/sync-evidence-fixtures.ts from EventEnvelopeSchema. Do not edit by hand."
 }
