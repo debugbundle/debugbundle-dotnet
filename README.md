@@ -16,9 +16,9 @@ This repository follows `spec/sdks/csharp-sdk.md`. The implemented package famil
 - `DebugBundle.AzureFunctions.Worker` Azure Functions isolated worker middleware.
 - xUnit coverage for universal API, redaction, suppression, transports, ASP.NET Core request capture, relay controls, framework integrations, and logger adapters.
 
-## Evidence candidate 2.1
+## Evidence in 2.1.0
 
-This unpublished candidate adds bounded native inner/aggregate graphs and execution
+Version 2.1.0 adds bounded native inner/aggregate graphs and execution
 context when `CaptureExceptionEvidence` (default true) and complete reader proof
 permit them. Native graph inspection uses base exception getters on the existing
 weak-reference worker; unsupported overrides remain unavailable. Existing outer
@@ -67,7 +67,7 @@ maximum five-second deadline spans chunks and compatible fallback. The optional
 legacy status-only success leaves a durable spool pending. A held custom forwarder
 occupies one bounded worker. Only complete canonical downstream acceptance creates
 an exclusive private delivered marker. Review/disable new evidence capture before
-adopting it in consumer applications. Runtime/artifact qualification is still open.
+adopting it in consumer applications. The published family passed native runtime and installed-artifact release checks.
 
 ## Installation
 

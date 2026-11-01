@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased — 2.1.0 candidate]
+## [2.1.0] - 2026-11-01
 
 - Reuse immutable mandatory privacy patterns and compile bounded custom fields once
   per protection operation, avoiding repeated allocation without sharing caller policy.
@@ -18,7 +18,7 @@
 - Preserve closed browser evidence/context and server identity through relays, with opted-in
   indexed responses, whole-forward deadlines, complete-ACK private markers and explicit custom forwarders.
 - Split the large client into existing public partial-class boundaries. Final runtime,
-  artifact, performance and whole-family release qualification remain open.
+  artifact, performance and whole-family release checks passed.
 
 ## [2.0.1] - 2026-09-26
 
