@@ -47,19 +47,21 @@ internal static class ExceptionProjection
         catch { return Unavailable; }
     }
 
-    private static bool IsBaseGetter(Exception exception, string property) =>
+    internal static bool IsBaseGetter(Exception exception, string property) =>
         exception.GetType().GetProperty(property)?.GetMethod?.DeclaringType == typeof(Exception);
 
-    internal static void Enrich(DebugBundleEventEnvelope envelope)
+    internal static void Enrich(DebugBundleEventEnvelope envelope, bool captureEvidence = false, bool fatal = false)
     {
         var pending = envelope.PendingException;
         envelope.PendingException = null;
         if (pending == null || !pending.TryGetTarget(out var exception)) return;
-        var summary = Snapshot(exception, allowVirtual: true);
+        var summary = Snapshot(exception, allowVirtual: !fatal);
         if (envelope.EventType == "backend_exception")
         {
             envelope.Payload["message"] = summary["message"];
             envelope.Payload["stack"] = summary["stack"];
+            if (captureEvidence) envelope.Payload["exception_evidence"] = ExceptionEvidence.Collect(exception, (string)summary["message"]!, fatal,
+                summary.TryGetValue("inner_exception", out var retainedInner) && retainedInner is Dictionary<string, object?> retained ? retained["message"] as string : null);
             envelope.Context ??= new Dictionary<string, object?>();
             envelope.Context["exception_hresult"] = summary["hresult"];
             if (summary.TryGetValue("inner_exception", out var inner)) envelope.Context["inner_exception"] = inner;

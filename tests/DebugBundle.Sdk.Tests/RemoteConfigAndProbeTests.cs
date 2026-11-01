@@ -8,6 +8,20 @@ namespace DebugBundle.Sdk.Tests;
 
 public sealed class RemoteConfigAndProbeTests
 {
+    [Theory]
+    [InlineData("off", false)]
+    [InlineData("error", false)]
+    [InlineData("info", true)]
+    [InlineData("unknown", true)]
+    public async Task RemoteLogModesRemainAuthoritativeWithOptionalEvidence(string mode, bool expected)
+    {
+        var transport = new FakeTransport(); var fetcher = new FakeRemoteConfigFetcher();
+        fetcher.Responses.Enqueue(_ => new RemoteConfigFetchResult { Config = new SdkRemoteConfig { CapturePolicy = new CapturePolicy { CaptureLogs = mode, CaptureRequestEvents = "all" } } });
+        using var client = DebugBundleClient.Create(new DebugBundleOptions { ProjectToken = "fixture", Environment = "test", Transport = transport, RemoteConfigFetcher = fetcher, LogLevel = DebugBundleLogLevel.Information }); await client.InitialRemoteConfigTask;
+        client.CaptureLog("warning fixture", DebugBundleLogLevel.Warning); client.CaptureRequest(new DebugBundleRequestInfo { Method = "GET", Path = "/ok" }, new DebugBundleResponseInfo { StatusCode = 200 }); await client.FlushAsync();
+        var events = transport.Batches.SelectMany(batch => batch).ToArray(); Assert.Equal(expected, events.Any(item => item.EventType == "log_event")); Assert.Contains(events, item => item.EventType == "request_event");
+    }
+
     [Fact]
     public async Task Remote_Config_Enforces_Log_And_Request_Capture_Policy()
     {
@@ -159,7 +173,7 @@ public sealed class RemoteConfigAndProbeTests
                 {
                     new()
                     {
-                        ActivationId = "activation_123",
+                        ActivationId = "11111111-1111-4111-8111-111111111111",
                         LabelPattern = "checkout.*",
                         Service = "checkout-api",
                         Environment = "production",
@@ -190,7 +204,7 @@ public sealed class RemoteConfigAndProbeTests
 
         Assert.True(invoked);
         var probe = transport.Batches.Single().Single(item => item.EventType == "probe_event");
-        Assert.Equal("activation_123", probe.Payload["activation_id"]);
+        Assert.Equal("11111111-1111-4111-8111-111111111111", probe.Payload["activation_id"]);
         Assert.Equal("checkout.tax", probe.Payload["label"]);
     }
 
@@ -201,7 +215,7 @@ public sealed class RemoteConfigAndProbeTests
         var signingKey = "test-signing-key";
         var token = BuildTriggerToken(signingKey, new
         {
-            activation_id = "trigger_activation",
+            activation_id = "22222222-2222-4222-8222-222222222222",
             label_patterns = new[] { "checkout.trigger" },
             service = "checkout-api",
             environment = "production",
@@ -237,7 +251,7 @@ public sealed class RemoteConfigAndProbeTests
         await client.FlushAsync();
 
         var probe = transport.Batches.Single().Single(item => item.EventType == "probe_event");
-        Assert.Equal("trigger_activation", probe.Payload["activation_id"]);
+        Assert.Equal("22222222-2222-4222-8222-222222222222", probe.Payload["activation_id"]);
     }
 
     [Fact]

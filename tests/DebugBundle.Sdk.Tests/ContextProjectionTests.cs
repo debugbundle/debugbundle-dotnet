@@ -6,6 +6,18 @@ namespace DebugBundle.Sdk.Tests;
 public sealed class ContextProjectionTests
 {
     [Fact]
+    public async Task CanonicalCorrelationPreservesSafeIdentityAndPersistentCustomFieldsStayProtected()
+    {
+        var transport = new FakeTransport();
+        using var client = DebugBundleClient.Create(new DebugBundleOptions { ProjectMode = DebugBundleProjectMode.LocalOnly, Transport = transport, RedactFields = new[] { "private_note" } });
+        client.SetContext("session_id", "0"); client.SetContext("private_note", "fictional-retention-canary"); client.SetContext("request_id", "password=fictional-sensitive-id");
+        var retained = (Dictionary<string, object?>)typeof(DebugBundleClient).GetField("_persistentContext", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(client)!;
+        Assert.Equal("[REDACTED]", retained["private_note"]); Assert.DoesNotContain("request_id", retained.Keys);
+        client.CaptureMessage("fixture", DebugBundleLogLevel.Error); await client.FlushAsync(); var captured = Assert.Single(Assert.Single(transport.Batches));
+        Assert.Equal("0", captured.Correlation!["session_id"]); Assert.False(captured.Correlation.ContainsKey("request_id")); Assert.DoesNotContain("fictional-retention-canary", System.Text.Json.JsonSerializer.Serialize(captured));
+    }
+
+    [Fact]
     public async Task CustomContextEnumerationCountAndObjectGettersNeverRunOnCapture()
     {
         using var release = new ManualResetEventSlim();

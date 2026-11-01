@@ -20,6 +20,10 @@ public static class TelemetryPrivacy
     };
     private const RegexOptions IgnoreCase = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant;
     private static readonly TimeSpan MatchTimeout = TimeSpan.FromMilliseconds(100);
+    // The fixed field set exceeds the runtime's small static Regex cache. Retain
+    // its immutable patterns once; caller-specific rules remain operation-owned.
+    private static readonly Regex[] FieldPatterns = Fields.Select(FieldPattern).ToArray();
+    private static Regex FieldPattern(string field) => new("\\b(" + Regex.Escape(field) + ")\\b([\"']?\\s*[:=]\\s*)(?:\"[^\"]*\"|'[^']*'|[^\\s&,;]+)", IgnoreCase, MatchTimeout);
 
     public static DebugBundleEventEnvelope? ProtectEvent(DebugBundleEventEnvelope eventEnvelope, IEnumerable<string>? additionalFields = null)
     {
@@ -99,11 +103,11 @@ public static class TelemetryPrivacy
         public int Bytes;
         public readonly HashSet<object> Seen = new(ReferenceComparer.Instance);
         public readonly HashSet<string> Keys;
-        public readonly string[] Extra;
+        public readonly Regex[] ExtraPatterns;
 
         public Work(string[] extra)
         {
-            Extra = extra;
+            ExtraPatterns = extra.Select(FieldPattern).ToArray();
             Keys = new HashSet<string>(Fields.Concat(extra).Select(Canonical), StringComparer.Ordinal);
         }
     }
@@ -260,9 +264,13 @@ public static class TelemetryPrivacy
         output = Regex.Replace(output, "\\b(Authorization|Proxy-Authorization|Cookie|Set-Cookie)\\s*:\\s*[^\\r\\n]*", "$1: [REDACTED]", IgnoreCase, MatchTimeout);
         output = Regex.Replace(output, "\\b(Bearer|Basic)\\s+[A-Za-z0-9._~+/-]{6,}", "$1 [REDACTED]", IgnoreCase, MatchTimeout);
         output = Regex.Replace(output, "\\bdbundle_(?:proj|mem|probe|agent)_[A-Za-z0-9_-]+\\b", Redacted, RegexOptions.None, MatchTimeout);
-        foreach (var field in Fields.Concat(work.Extra))
+        foreach (var pattern in FieldPatterns)
         {
-            output = Regex.Replace(output, "\\b(" + Regex.Escape(field) + ")\\b([\"']?\\s*[:=]\\s*)(?:\"[^\"]*\"|'[^']*'|[^\\s&,;]+)", "$1$2[REDACTED]", IgnoreCase, MatchTimeout);
+            output = pattern.Replace(output, "$1$2[REDACTED]");
+        }
+        foreach (var pattern in work.ExtraPatterns)
+        {
+            output = pattern.Replace(output, "$1$2[REDACTED]");
         }
         output = Regex.Replace(output, "(?<![A-Za-z0-9_-])(?:[0-9][ -]?){12,18}[0-9](?![A-Za-z0-9_-])",
             match => ValidCard(match.Value) ? Redacted : match.Value, RegexOptions.None, MatchTimeout);

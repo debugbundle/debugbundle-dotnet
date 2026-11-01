@@ -5,6 +5,9 @@ namespace DebugBundle;
 
 public sealed class DebugBundleOptions
 {
+    public bool CaptureExceptionEvidence { get; set; } = true;
+    public bool CaptureRecoveryObservations { get; set; }
+    public EvidenceCapabilities? EvidenceCapabilities { get; set; }
     public string? ProjectToken { get; set; }
     public bool Enabled { get; set; } = true;
     public string? Environment { get; set; }
@@ -69,7 +72,7 @@ public sealed class DebugBundleOptions
             Transport,
             RemoteConfigFetcher,
             RandomSource ?? new Random().NextDouble,
-            BeforeSend);
+            BeforeSend, CaptureExceptionEvidence, EvidenceCapabilities, CaptureRecoveryObservations);
     }
 
     private static string FirstNonWhiteSpace(params string?[] values)
@@ -120,7 +123,8 @@ internal sealed class ResolvedDebugBundleOptions
         IEventTransport? transport,
         IRemoteConfigFetcher? remoteConfigFetcher,
         Func<double> randomSource,
-        Func<DebugBundleEventEnvelope, DebugBundleEventEnvelope?>? beforeSend)
+        Func<DebugBundleEventEnvelope, DebugBundleEventEnvelope?>? beforeSend,
+        bool captureExceptionEvidence = true, EvidenceCapabilities? evidenceCapabilities = null, bool captureRecoveryObservations = false)
     {
         ProjectToken = projectToken;
         Enabled = enabled;
@@ -144,8 +148,14 @@ internal sealed class ResolvedDebugBundleOptions
         RemoteConfigFetcher = remoteConfigFetcher;
         RandomSource = randomSource;
         BeforeSend = beforeSend;
+        CaptureExceptionEvidence = captureExceptionEvidence;
+        CaptureRecoveryObservations = captureRecoveryObservations;
+        EvidenceCapabilities = EvidenceDeliveryState.Normalize(evidenceCapabilities);
     }
 
+    public bool CaptureExceptionEvidence { get; }
+    public bool CaptureRecoveryObservations { get; }
+    public EvidenceCapabilities EvidenceCapabilities { get; }
     public string ProjectToken { get; }
     public bool Enabled { get; }
     public string Environment { get; }

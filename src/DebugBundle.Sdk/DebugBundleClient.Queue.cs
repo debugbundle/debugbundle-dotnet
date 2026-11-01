@@ -22,7 +22,7 @@ public sealed partial class DebugBundleClient
     {
         if (!Monitor.TryEnter(_sync))
         {
-            Interlocked.Increment(ref _contentionDrops);
+            if (kind != "diagnostic_context") Interlocked.Increment(ref _contentionDrops);
             return false;
         }
         try
@@ -32,6 +32,7 @@ public sealed partial class DebugBundleClient
                 _buffer.Count + _inFlightEvents < MaxOwnedEvents &&
                 _queuedBytes + _inFlightBytes < MaxOwnedBytes &&
                 (priority >= 2 || QueuedOrdinaryLocked() + _inFlightOrdinary < MaxOrdinaryEvents)) return true;
+            if (kind == "diagnostic_context") return false;
             if (HasLowerPriorityLocked(priority)) return true;
             RecordPressureKindLocked(kind);
             return false;
@@ -72,7 +73,7 @@ public sealed partial class DebugBundleClient
                _queuedBytes + _inFlightBytes + bytes > MaxOwnedBytes ||
                (priority < 2 && QueuedOrdinaryLocked() + _inFlightOrdinary >= MaxOrdinaryEvents))
         {
-            if (!HasLowerPriorityLocked(priority))
+            if (envelope.EventType == "diagnostic_context" || !HasLowerPriorityLocked(priority))
             {
                 RecordPressureLocked(envelope);
                 return false;
@@ -86,6 +87,7 @@ public sealed partial class DebugBundleClient
             var evicted = _buffer[index];
             _buffer.RemoveAt(index);
             RemoveOwnershipLocked(evicted);
+            ReleaseDiagnosticLocked(evicted);
             RecordPressureLocked(evicted);
         }
 
@@ -144,11 +146,13 @@ public sealed partial class DebugBundleClient
                _queuedBytes + _inFlightBytes + bytes > MaxOwnedBytes ||
                (priority < 2 && QueuedOrdinaryLocked() + _inFlightOrdinary >= MaxOrdinaryEvents))
         {
+            if (envelope.EventType == "diagnostic_context") return RejectPreparedLocked(envelope);
             var index = _buffer.FindIndex(candidate => EventPriority(candidate) < priority);
             if (index < 0) return RejectPreparedLocked(envelope);
             var evicted = _buffer[index];
             _buffer.RemoveAt(index);
             RemoveOwnershipLocked(evicted);
+            ReleaseDiagnosticLocked(evicted);
             RecordPressureLocked(evicted);
         }
         _inFlightEvents++;
@@ -167,10 +171,13 @@ public sealed partial class DebugBundleClient
     private void AddPreparedAggregate(List<DebugBundleEventEnvelope> batch,
         Dictionary<DebugBundleEventEnvelope, int> sizes, DebugBundleEventEnvelope envelope)
     {
+        envelope = FitNativeEvent(envelope)!;
+        if (envelope == null) return;
+        envelope.Prepared = true;
         var bytes = EventBytes(envelope);
         lock (_sync)
         {
-            if (!ReservePreparedLocked(envelope, bytes)) return;
+            if (_disposed || !ReservePreparedLocked(envelope, bytes)) return;
             batch.Add(envelope);
             sizes[envelope] = bytes;
         }
@@ -188,6 +195,7 @@ public sealed partial class DebugBundleClient
 
     private void RecordPressureLocked(DebugBundleEventEnvelope envelope)
     {
+        if (envelope.EventType == "diagnostic_context") return;
         var kind = envelope.EventType == "log_event"
             ? LevelName(ParseLogLevel(envelope.Payload.TryGetValue("level", out var level) ? level : null))
             : envelope.EventType == "backend_exception" ? "exception" : "other";
@@ -235,6 +243,6 @@ public sealed partial class DebugBundleClient
     private void RestoreBatchLocked(IEnumerable<DebugBundleEventEnvelope> batch, IReadOnlyDictionary<DebugBundleEventEnvelope, int> sizes)
     {
         foreach (var envelope in batch.OrderByDescending(EventPriority))
-            if (sizes.TryGetValue(envelope, out var bytes)) AdmitLocked(envelope, bytes);
+            if (sizes.TryGetValue(envelope, out var bytes) && !AdmitLocked(envelope, bytes)) ReleaseDiagnosticLocked(envelope);
     }
 }

@@ -113,20 +113,27 @@ public sealed partial class DebugBundleClient
             return;
         }
 
-        var result = await _remoteConfigFetcher.FetchAsync(new RemoteConfigFetchRequest
+        RemoteConfigFetchResult result;
+        try
         {
-            Endpoint = _options.Endpoint,
-            ProjectToken = _options.ProjectToken,
-            Service = _options.Service,
-            Environment = _options.Environment,
-            ETag = _remoteConfigETag
-        }, cancellationToken).ConfigureAwait(false);
+            result = await _remoteConfigFetcher.FetchAsync(new RemoteConfigFetchRequest
+            {
+                Endpoint = _options.Endpoint,
+                ProjectToken = _options.ProjectToken,
+                Service = _options.Service,
+                Environment = _options.Environment,
+                ETag = _remoteConfigETag
+            }, cancellationToken).ConfigureAwait(false);
+
+        }
+        catch { ObserveRemoteEvidence(null); throw; }
 
         lock (_sync)
         {
             if (!result.NotModified)
             {
                 _remoteConfig = result.Config ?? SdkRemoteConfig.Balanced();
+                ObserveRemoteEvidence(_remoteConfig.EvidenceCapabilities);
                 _remoteConfigETag = result.ETag;
             }
 

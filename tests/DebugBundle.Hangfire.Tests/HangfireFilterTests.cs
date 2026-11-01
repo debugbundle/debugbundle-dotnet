@@ -10,6 +10,26 @@ namespace DebugBundle.Hangfire.Tests;
 public sealed class HangfireFilterTests
 {
     [Fact]
+    public async Task JobOperationEndsOnSuccessAndFailureWithoutChangingFailureHandling()
+    {
+        var transport = new EvidenceTransport();
+        using var client = DebugBundleClient.Create(new DebugBundleOptions { ProjectMode = DebugBundleProjectMode.LocalOnly, Transport = transport, EvidenceCapabilities = new EvidenceCapabilities { Features = new[] { "exception_evidence_v1" } } });
+        var filter = new DebugBundleHangfireFilter(client);
+        var job = new BackgroundJob("fixture", Job.FromExpression(() => SampleJobs.SampleJob("private", 1)), DateTime.UtcNow);
+        var performing = new PerformingContext(new PerformContext(new StubJobStorage(), new StubStorageConnection(), job, new StubCancellationToken()));
+        filter.OnPerforming(performing); var copied = ExecutionContext.Capture();
+        filter.OnPerformed(new PerformedContext(performing, null, false, new Exception("job fixture")));
+        ExecutionContext.Run(copied!, _ => client.CaptureException(new Exception("late fixture")), null);
+        await client.FlushAsync(); var failures = transport.Events.Where(item => item.EventType == "backend_exception").ToArray();
+        Assert.Equal("job", ((Dictionary<string, object?>)failures[0].Payload["execution"]!)["kind"]);
+        Assert.False(failures[1].Payload.ContainsKey("execution"));
+        filter.OnPerforming(performing); copied = ExecutionContext.Capture();
+        filter.OnPerformed(new PerformedContext(performing, null, false, null));
+        ExecutionContext.Run(copied!, _ => client.CaptureException(new Exception("after success fixture")), null);
+        await client.FlushAsync(); Assert.False(transport.Events.Last().Payload.ContainsKey("execution"));
+    }
+
+    [Fact]
     public void OnPerformed_Captures_Failed_Job_Metadata_Without_Argument_Values()
     {
         var client = new FakeClient();

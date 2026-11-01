@@ -1,0 +1,2484 @@
+{
+  "anyOf": [
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "event_type": {
+          "type": "string",
+          "const": "diagnostic_context"
+        },
+        "project_token": {
+          "type": "string",
+          "minLength": 1
+        },
+        "project_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sdk_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sdk_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "service": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "runtime": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "framework": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "environment": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "name",
+            "environment"
+          ],
+          "additionalProperties": false
+        },
+        "occurred_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "correlation": {
+          "type": "object",
+          "properties": {
+            "request_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "trace_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "session_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "user_id_hash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "context": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "payload": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "number",
+                  "const": 1
+                },
+                "kind": {
+                  "type": "string",
+                  "const": "recovery"
+                },
+                "failure_ref": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "scope": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "page"
+                        },
+                        "page_id": {
+                          "$ref": "#/anyOf/0/properties/payload/anyOf/0/properties/failure_ref"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "page_id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "operation"
+                        },
+                        "operation_id": {
+                          "$ref": "#/anyOf/0/properties/payload/anyOf/0/properties/failure_ref"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "operation_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "attempt_id": {
+                  "$ref": "#/anyOf/0/properties/payload/anyOf/0/properties/failure_ref"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "attempt_started",
+                    "attempt_completed",
+                    "attempt_failed",
+                    "recovery_observed",
+                    "failure_persisted"
+                  ]
+                },
+                "operation": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "status_code": {
+                  "type": "integer",
+                  "minimum": 100,
+                  "maximum": 599
+                },
+                "duration_ms": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "version",
+                "kind",
+                "failure_ref",
+                "scope",
+                "attempt_id",
+                "state"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "number",
+                  "const": 1
+                },
+                "kind": {
+                  "type": "string",
+                  "const": "resource_observation"
+                },
+                "failure_ref": {
+                  "$ref": "#/anyOf/0/properties/payload/anyOf/0/properties/failure_ref"
+                },
+                "scope": {
+                  "$ref": "#/anyOf/0/properties/payload/anyOf/0/properties/scope"
+                },
+                "source_event_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "observations": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "number",
+                      "const": 1
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "timing"
+                              },
+                              "observed_at": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "source_url": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "maxLength": 2048
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "availability": {
+                                "type": "string",
+                                "enum": [
+                                  "observed",
+                                  "unsupported",
+                                  "no_match",
+                                  "withheld",
+                                  "ambiguous",
+                                  "unknown"
+                                ]
+                              },
+                              "response_status": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 100,
+                                    "maximum": 599
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "duration_ms": {
+                                "anyOf": [
+                                  {
+                                    "type": "number",
+                                    "minimum": 0
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "transfer_size_bytes": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "observed_at",
+                              "source_url",
+                              "availability",
+                              "response_status",
+                              "duration_ms",
+                              "transfer_size_bytes"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "csp"
+                              },
+                              "observed_at": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "source_url": {
+                                "anyOf": [
+                                  {
+                                    "$ref": "#/anyOf/0/properties/payload/anyOf/1/properties/observations/properties/items/items/anyOf/0/properties/source_url/anyOf/0"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "effective_directive": {
+                                "type": "string",
+                                "pattern": "^[a-z-]{1,64}$"
+                              },
+                              "disposition": {
+                                "type": "string",
+                                "enum": [
+                                  "enforce",
+                                  "report"
+                                ]
+                              },
+                              "document_status_code": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 100,
+                                    "maximum": 599
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "observed_at",
+                              "source_url",
+                              "effective_directive",
+                              "disposition",
+                              "document_status_code"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "minItems": 1,
+                      "maxItems": 5
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "version",
+                "kind",
+                "failure_ref",
+                "scope",
+                "source_event_id",
+                "observations"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "event_id",
+        "event_type",
+        "sdk_name",
+        "sdk_version",
+        "service",
+        "occurred_at",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "$ref": "#/anyOf/0/properties/schema_version"
+        },
+        "event_id": {
+          "$ref": "#/anyOf/0/properties/event_id"
+        },
+        "event_type": {
+          "type": "string",
+          "const": "backend_exception"
+        },
+        "project_token": {
+          "$ref": "#/anyOf/0/properties/project_token"
+        },
+        "project_id": {
+          "$ref": "#/anyOf/0/properties/project_id"
+        },
+        "sdk_name": {
+          "$ref": "#/anyOf/0/properties/sdk_name"
+        },
+        "sdk_version": {
+          "$ref": "#/anyOf/0/properties/sdk_version"
+        },
+        "service": {
+          "$ref": "#/anyOf/0/properties/service"
+        },
+        "occurred_at": {
+          "$ref": "#/anyOf/0/properties/occurred_at"
+        },
+        "correlation": {
+          "$ref": "#/anyOf/0/properties/correlation"
+        },
+        "context": {
+          "$ref": "#/anyOf/0/properties/context"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1
+            },
+            "stack": {
+              "type": "string",
+              "minLength": 1
+            },
+            "handled": {
+              "type": "boolean"
+            },
+            "request": {
+              "type": "object",
+              "properties": {
+                "method": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "query": {
+                  "type": "object",
+                  "additionalProperties": {}
+                },
+                "headers": {
+                  "type": "object",
+                  "additionalProperties": {}
+                },
+                "body": {
+                  "anyOf": [
+                    {},
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "method",
+                "path",
+                "query",
+                "headers"
+              ],
+              "additionalProperties": false
+            },
+            "response": {
+              "type": "object",
+              "properties": {
+                "status_code": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "headers": {
+                  "type": "object",
+                  "additionalProperties": {}
+                },
+                "body": {}
+              },
+              "required": [
+                "status_code"
+              ],
+              "additionalProperties": false
+            },
+            "runtime": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "platform": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "arch": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "pid": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "cwd": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "uptime_sec": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "hostname": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "thread_id": {
+                  "anyOf": [
+                    {
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "framework_version": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "memory": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "rss": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "heap_total": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "heap_used": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "external": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "peak": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "rss",
+                        "heap_total",
+                        "heap_used",
+                        "external",
+                        "peak"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "framework_extras": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "version"
+              ],
+              "additionalProperties": false
+            },
+            "probe_data": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "number",
+                  "const": 1
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "data": {
+                        "type": "object",
+                        "additionalProperties": {}
+                      },
+                      "timestamp": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "activation_id": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "label",
+                      "data",
+                      "timestamp",
+                      "activation_id"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "version",
+                "items"
+              ],
+              "additionalProperties": false
+            },
+            "exception_evidence": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "number",
+                  "const": 1
+                },
+                "runtime": {
+                  "type": "string",
+                  "enum": [
+                    "node",
+                    "browser",
+                    "python",
+                    "php",
+                    "jvm",
+                    "go",
+                    "ruby",
+                    "dotnet",
+                    "android",
+                    "swift",
+                    "react_native",
+                    "unknown"
+                  ]
+                },
+                "root_id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 7
+                },
+                "nodes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/anyOf/1/properties/payload/properties/exception_evidence/properties/root_id"
+                      },
+                      "name": {
+                        "type": "string",
+                        "maxLength": 256
+                      },
+                      "message": {
+                        "type": "string",
+                        "maxLength": 2048
+                      },
+                      "stack": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 16384
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "trace_origin": {
+                        "type": "string",
+                        "enum": [
+                          "throw",
+                          "native_fatal",
+                          "capture",
+                          "runtime_reported",
+                          "unavailable",
+                          "unknown"
+                        ]
+                      },
+                      "parsing_status": {
+                        "type": "string",
+                        "enum": [
+                          "parsed",
+                          "partial",
+                          "unparsed",
+                          "unavailable",
+                          "truncated"
+                        ]
+                      },
+                      "frames": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "function": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 256
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "file": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 2048
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "line": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "column": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "classification": {
+                              "type": "string",
+                              "enum": [
+                                "application",
+                                "framework",
+                                "sdk",
+                                "unknown"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "function",
+                            "file",
+                            "line",
+                            "column",
+                            "classification"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "maxItems": 32
+                      },
+                      "relationships": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "cause",
+                                "context",
+                                "aggregate",
+                                "suppressed"
+                              ]
+                            },
+                            "target_id": {
+                              "$ref": "#/anyOf/1/properties/payload/properties/exception_evidence/properties/root_id"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "target_id"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "maxItems": 5
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "message",
+                      "stack",
+                      "trace_origin",
+                      "parsing_status",
+                      "frames",
+                      "relationships"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "minItems": 1,
+                  "maxItems": 8
+                },
+                "truncated": {
+                  "type": "boolean"
+                },
+                "unavailable_reason": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "unknown",
+                        "unsupported",
+                        "unsafe",
+                        "budget_exceeded"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "version",
+                "runtime",
+                "root_id",
+                "nodes",
+                "truncated",
+                "unavailable_reason"
+              ],
+              "additionalProperties": false
+            },
+            "execution": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "number",
+                  "const": 1
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "request",
+                    "command",
+                    "job",
+                    "unknown"
+                  ]
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 128
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "elapsed_ms": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "limit_ms": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "version",
+                "kind",
+                "name",
+                "elapsed_ms",
+                "limit_ms"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "name",
+            "message",
+            "stack",
+            "handled",
+            "request",
+            "response",
+            "runtime"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "event_id",
+        "event_type",
+        "sdk_name",
+        "sdk_version",
+        "service",
+        "occurred_at",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "$ref": "#/anyOf/0/properties/schema_version"
+        },
+        "event_id": {
+          "$ref": "#/anyOf/0/properties/event_id"
+        },
+        "event_type": {
+          "type": "string",
+          "const": "request_event"
+        },
+        "project_token": {
+          "$ref": "#/anyOf/0/properties/project_token"
+        },
+        "project_id": {
+          "$ref": "#/anyOf/0/properties/project_id"
+        },
+        "sdk_name": {
+          "$ref": "#/anyOf/0/properties/sdk_name"
+        },
+        "sdk_version": {
+          "$ref": "#/anyOf/0/properties/sdk_version"
+        },
+        "service": {
+          "$ref": "#/anyOf/0/properties/service"
+        },
+        "occurred_at": {
+          "$ref": "#/anyOf/0/properties/occurred_at"
+        },
+        "correlation": {
+          "$ref": "#/anyOf/0/properties/correlation"
+        },
+        "context": {
+          "$ref": "#/anyOf/0/properties/context"
+        },
+        "payload": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "method": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "query": {
+                  "type": "object",
+                  "additionalProperties": {}
+                },
+                "headers": {
+                  "type": "object",
+                  "additionalProperties": {}
+                },
+                "body": {
+                  "anyOf": [
+                    {},
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "response_status": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "duration_ms": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "route_template": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "response_headers": {
+                  "type": "object",
+                  "additionalProperties": {}
+                },
+                "response_body": {}
+              },
+              "required": [
+                "method",
+                "path",
+                "query",
+                "headers",
+                "response_status",
+                "duration_ms"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "method": {
+                  "$ref": "#/anyOf/2/properties/payload/anyOf/0/properties/method"
+                },
+                "path": {
+                  "$ref": "#/anyOf/2/properties/payload/anyOf/0/properties/path"
+                },
+                "query": {
+                  "$ref": "#/anyOf/2/properties/payload/anyOf/0/properties/query"
+                },
+                "headers": {
+                  "$ref": "#/anyOf/2/properties/payload/anyOf/0/properties/headers"
+                },
+                "body": {
+                  "$ref": "#/anyOf/2/properties/payload/anyOf/0/properties/body"
+                },
+                "response_status": {
+                  "$ref": "#/anyOf/2/properties/payload/anyOf/0/properties/response_status"
+                },
+                "duration_ms": {
+                  "$ref": "#/anyOf/2/properties/payload/anyOf/0/properties/duration_ms"
+                },
+                "route_template": {
+                  "$ref": "#/anyOf/2/properties/payload/anyOf/0/properties/route_template"
+                },
+                "response_headers": {
+                  "$ref": "#/anyOf/2/properties/payload/anyOf/0/properties/response_headers"
+                },
+                "response_body": {
+                  "$ref": "#/anyOf/2/properties/payload/anyOf/0/properties/response_body"
+                },
+                "device": {
+                  "type": "object",
+                  "properties": {
+                    "user_agent": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "os": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "version": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "version"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "device_type": {
+                      "type": "string",
+                      "enum": [
+                        "desktop",
+                        "mobile",
+                        "tablet",
+                        "unknown"
+                      ]
+                    },
+                    "screen": {
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "height": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "width",
+                        "height"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "viewport": {
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "height": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "width",
+                        "height"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "device_pixel_ratio": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "touch_capable": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "language": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "connection_type": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "color_scheme_preference": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "light",
+                            "dark",
+                            "no-preference"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "app_version": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "build_number": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "release_channel": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "api_level": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "manufacturer": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "model": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "timezone": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "battery_level": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "battery_charging": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "free_disk_bytes": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "free_memory_bytes": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "jailbroken": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "user_agent",
+                    "os",
+                    "device_type",
+                    "screen",
+                    "viewport",
+                    "device_pixel_ratio",
+                    "touch_capable",
+                    "language",
+                    "connection_type",
+                    "color_scheme_preference"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "method",
+                "path",
+                "query",
+                "headers",
+                "response_status",
+                "duration_ms",
+                "device"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "event_id",
+        "event_type",
+        "sdk_name",
+        "sdk_version",
+        "service",
+        "occurred_at",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "$ref": "#/anyOf/0/properties/schema_version"
+        },
+        "event_id": {
+          "$ref": "#/anyOf/0/properties/event_id"
+        },
+        "event_type": {
+          "type": "string",
+          "const": "log_event"
+        },
+        "project_token": {
+          "$ref": "#/anyOf/0/properties/project_token"
+        },
+        "project_id": {
+          "$ref": "#/anyOf/0/properties/project_id"
+        },
+        "sdk_name": {
+          "$ref": "#/anyOf/0/properties/sdk_name"
+        },
+        "sdk_version": {
+          "$ref": "#/anyOf/0/properties/sdk_version"
+        },
+        "service": {
+          "$ref": "#/anyOf/0/properties/service"
+        },
+        "occurred_at": {
+          "$ref": "#/anyOf/0/properties/occurred_at"
+        },
+        "correlation": {
+          "$ref": "#/anyOf/0/properties/correlation"
+        },
+        "context": {
+          "$ref": "#/anyOf/0/properties/context"
+        },
+        "payload": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "level": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "message": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "attributes": {
+                  "type": "object",
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "level",
+                "message",
+                "attributes"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "level": {
+                  "$ref": "#/anyOf/3/properties/payload/anyOf/0/properties/level"
+                },
+                "message": {
+                  "$ref": "#/anyOf/3/properties/payload/anyOf/0/properties/message"
+                },
+                "attributes": {
+                  "$ref": "#/anyOf/3/properties/payload/anyOf/0/properties/attributes"
+                },
+                "device": {
+                  "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device"
+                }
+              },
+              "required": [
+                "level",
+                "message",
+                "attributes",
+                "device"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "event_id",
+        "event_type",
+        "sdk_name",
+        "sdk_version",
+        "service",
+        "occurred_at",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "$ref": "#/anyOf/0/properties/schema_version"
+        },
+        "event_id": {
+          "$ref": "#/anyOf/0/properties/event_id"
+        },
+        "event_type": {
+          "type": "string",
+          "const": "frontend_breadcrumb"
+        },
+        "project_token": {
+          "$ref": "#/anyOf/0/properties/project_token"
+        },
+        "project_id": {
+          "$ref": "#/anyOf/0/properties/project_id"
+        },
+        "sdk_name": {
+          "$ref": "#/anyOf/0/properties/sdk_name"
+        },
+        "sdk_version": {
+          "$ref": "#/anyOf/0/properties/sdk_version"
+        },
+        "service": {
+          "$ref": "#/anyOf/0/properties/service"
+        },
+        "occurred_at": {
+          "$ref": "#/anyOf/0/properties/occurred_at"
+        },
+        "correlation": {
+          "$ref": "#/anyOf/0/properties/correlation"
+        },
+        "context": {
+          "$ref": "#/anyOf/0/properties/context"
+        },
+        "payload": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "breadcrumb_type": {
+                  "type": "string",
+                  "enum": [
+                    "route_change",
+                    "click",
+                    "form_submit",
+                    "console_log",
+                    "network_request"
+                  ]
+                },
+                "route": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "data": {
+                  "type": "object",
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "breadcrumb_type",
+                "data"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "breadcrumb_type": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "route": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "data": {
+                  "type": "object",
+                  "additionalProperties": {}
+                },
+                "device": {
+                  "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device"
+                }
+              },
+              "required": [
+                "breadcrumb_type",
+                "data",
+                "device"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "event_id",
+        "event_type",
+        "sdk_name",
+        "sdk_version",
+        "service",
+        "occurred_at",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "$ref": "#/anyOf/0/properties/schema_version"
+        },
+        "event_id": {
+          "$ref": "#/anyOf/0/properties/event_id"
+        },
+        "event_type": {
+          "type": "string",
+          "const": "frontend_exception"
+        },
+        "project_token": {
+          "$ref": "#/anyOf/0/properties/project_token"
+        },
+        "project_id": {
+          "$ref": "#/anyOf/0/properties/project_id"
+        },
+        "sdk_name": {
+          "$ref": "#/anyOf/0/properties/sdk_name"
+        },
+        "sdk_version": {
+          "$ref": "#/anyOf/0/properties/sdk_version"
+        },
+        "service": {
+          "$ref": "#/anyOf/0/properties/service"
+        },
+        "occurred_at": {
+          "$ref": "#/anyOf/0/properties/occurred_at"
+        },
+        "correlation": {
+          "$ref": "#/anyOf/0/properties/correlation"
+        },
+        "context": {
+          "$ref": "#/anyOf/0/properties/context"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1
+            },
+            "stack": {
+              "type": "string",
+              "minLength": 1
+            },
+            "route": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "browser": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "name",
+                "version"
+              ],
+              "additionalProperties": false
+            },
+            "breadcrumbs": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "breadcrumb_type": {
+                        "$ref": "#/anyOf/4/properties/payload/anyOf/0/properties/breadcrumb_type"
+                      },
+                      "route": {
+                        "$ref": "#/anyOf/4/properties/payload/anyOf/0/properties/route"
+                      },
+                      "data": {
+                        "$ref": "#/anyOf/4/properties/payload/anyOf/0/properties/data"
+                      },
+                      "ts": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "breadcrumb_type",
+                      "data",
+                      "ts"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "breadcrumb_type": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "route": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "data": {
+                        "type": "object",
+                        "additionalProperties": {}
+                      },
+                      "ts": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "breadcrumb_type",
+                      "data",
+                      "ts"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "device": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "user_agent": {
+                          "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device/properties/user_agent"
+                        },
+                        "os": {
+                          "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device/properties/os"
+                        },
+                        "device_type": {
+                          "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device/properties/device_type"
+                        },
+                        "screen": {
+                          "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device/properties/screen"
+                        },
+                        "viewport": {
+                          "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device/properties/viewport"
+                        },
+                        "device_pixel_ratio": {
+                          "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device/properties/device_pixel_ratio"
+                        },
+                        "touch_capable": {
+                          "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device/properties/touch_capable"
+                        },
+                        "language": {
+                          "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device/properties/language"
+                        },
+                        "connection_type": {
+                          "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device/properties/connection_type"
+                        },
+                        "color_scheme_preference": {
+                          "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device/properties/color_scheme_preference"
+                        }
+                      },
+                      "required": [
+                        "user_agent",
+                        "os",
+                        "device_type",
+                        "screen",
+                        "viewport",
+                        "device_pixel_ratio",
+                        "touch_capable",
+                        "language",
+                        "connection_type",
+                        "color_scheme_preference"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "browser_event": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "window_error",
+                    "resource_error"
+                  ]
+                },
+                "message": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "file_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "line_number": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "column_number": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "target": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag_name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "source_url": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "attributes": {
+                          "type": "object",
+                          "properties": {
+                            "rel": {
+                              "type": "string"
+                            },
+                            "as": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "type": "string"
+                            },
+                            "media": {
+                              "type": "string"
+                            },
+                            "cross_origin": {
+                              "type": "string"
+                            },
+                            "async": {
+                              "type": "boolean"
+                            },
+                            "defer": {
+                              "type": "boolean"
+                            },
+                            "integrity_present": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "tag_name",
+                        "source_url"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "page": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "referrer": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "ready_state": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "loading",
+                            "interactive",
+                            "complete"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "visibility_state": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "visible",
+                            "hidden",
+                            "prerender",
+                            "unloaded"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "url",
+                    "referrer",
+                    "ready_state",
+                    "visibility_state"
+                  ],
+                  "additionalProperties": false
+                },
+                "opaque": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "kind",
+                "message",
+                "file_name",
+                "line_number",
+                "column_number",
+                "target",
+                "opaque"
+              ],
+              "additionalProperties": false
+            },
+            "rejection_reason": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "string",
+                    "object",
+                    "null",
+                    "undefined",
+                    "unknown"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "message": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "preview": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
+            },
+            "dom_context": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string",
+                      "const": "lightweight"
+                    },
+                    "html_excerpt": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "mode",
+                    "html_excerpt"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "probe_data": {
+              "$ref": "#/anyOf/1/properties/payload/properties/probe_data"
+            },
+            "exception_evidence": {
+              "$ref": "#/anyOf/1/properties/payload/properties/exception_evidence"
+            },
+            "resource_observations": {
+              "$ref": "#/anyOf/0/properties/payload/anyOf/1/properties/observations"
+            }
+          },
+          "required": [
+            "name",
+            "message",
+            "stack"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "event_id",
+        "event_type",
+        "sdk_name",
+        "sdk_version",
+        "service",
+        "occurred_at",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "$ref": "#/anyOf/0/properties/schema_version"
+        },
+        "event_id": {
+          "$ref": "#/anyOf/0/properties/event_id"
+        },
+        "event_type": {
+          "type": "string",
+          "const": "deploy_metadata"
+        },
+        "project_token": {
+          "$ref": "#/anyOf/0/properties/project_token"
+        },
+        "project_id": {
+          "$ref": "#/anyOf/0/properties/project_id"
+        },
+        "sdk_name": {
+          "$ref": "#/anyOf/0/properties/sdk_name"
+        },
+        "sdk_version": {
+          "$ref": "#/anyOf/0/properties/sdk_version"
+        },
+        "service": {
+          "$ref": "#/anyOf/0/properties/service"
+        },
+        "occurred_at": {
+          "$ref": "#/anyOf/0/properties/occurred_at"
+        },
+        "correlation": {
+          "$ref": "#/anyOf/0/properties/correlation"
+        },
+        "context": {
+          "$ref": "#/anyOf/0/properties/context"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "commit_sha": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "branch": {
+              "type": "string",
+              "minLength": 1
+            },
+            "environment": {
+              "type": "string",
+              "minLength": 1
+            },
+            "deployed_at": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "required": [
+            "commit_sha",
+            "version",
+            "branch",
+            "environment",
+            "deployed_at"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "event_id",
+        "event_type",
+        "sdk_name",
+        "sdk_version",
+        "service",
+        "occurred_at",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "$ref": "#/anyOf/0/properties/schema_version"
+        },
+        "event_id": {
+          "$ref": "#/anyOf/0/properties/event_id"
+        },
+        "event_type": {
+          "type": "string",
+          "const": "error_suppressed"
+        },
+        "project_token": {
+          "$ref": "#/anyOf/0/properties/project_token"
+        },
+        "project_id": {
+          "$ref": "#/anyOf/0/properties/project_id"
+        },
+        "sdk_name": {
+          "$ref": "#/anyOf/0/properties/sdk_name"
+        },
+        "sdk_version": {
+          "$ref": "#/anyOf/0/properties/sdk_version"
+        },
+        "service": {
+          "$ref": "#/anyOf/0/properties/service"
+        },
+        "occurred_at": {
+          "$ref": "#/anyOf/0/properties/occurred_at"
+        },
+        "correlation": {
+          "$ref": "#/anyOf/0/properties/correlation"
+        },
+        "context": {
+          "$ref": "#/anyOf/0/properties/context"
+        },
+        "payload": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "fingerprint": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "suppressed_count": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "window_seconds": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                },
+                "first_seen": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "last_seen": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "reason": {
+                  "type": "string",
+                  "const": "queue_pressure"
+                },
+                "level": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "fingerprint",
+                "suppressed_count",
+                "window_seconds",
+                "first_seen",
+                "last_seen"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "fingerprint": {
+                  "$ref": "#/anyOf/7/properties/payload/anyOf/0/properties/fingerprint"
+                },
+                "suppressed_count": {
+                  "$ref": "#/anyOf/7/properties/payload/anyOf/0/properties/suppressed_count"
+                },
+                "window_seconds": {
+                  "$ref": "#/anyOf/7/properties/payload/anyOf/0/properties/window_seconds"
+                },
+                "first_seen": {
+                  "$ref": "#/anyOf/7/properties/payload/anyOf/0/properties/first_seen"
+                },
+                "last_seen": {
+                  "$ref": "#/anyOf/7/properties/payload/anyOf/0/properties/last_seen"
+                },
+                "reason": {
+                  "$ref": "#/anyOf/7/properties/payload/anyOf/0/properties/reason"
+                },
+                "level": {
+                  "$ref": "#/anyOf/7/properties/payload/anyOf/0/properties/level"
+                },
+                "device": {
+                  "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device"
+                }
+              },
+              "required": [
+                "fingerprint",
+                "suppressed_count",
+                "window_seconds",
+                "first_seen",
+                "last_seen",
+                "device"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "event_id",
+        "event_type",
+        "sdk_name",
+        "sdk_version",
+        "service",
+        "occurred_at",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "$ref": "#/anyOf/0/properties/schema_version"
+        },
+        "event_id": {
+          "$ref": "#/anyOf/0/properties/event_id"
+        },
+        "event_type": {
+          "type": "string",
+          "const": "probe_event"
+        },
+        "project_token": {
+          "$ref": "#/anyOf/0/properties/project_token"
+        },
+        "project_id": {
+          "$ref": "#/anyOf/0/properties/project_id"
+        },
+        "sdk_name": {
+          "$ref": "#/anyOf/0/properties/sdk_name"
+        },
+        "sdk_version": {
+          "$ref": "#/anyOf/0/properties/sdk_version"
+        },
+        "service": {
+          "$ref": "#/anyOf/0/properties/service"
+        },
+        "occurred_at": {
+          "$ref": "#/anyOf/0/properties/occurred_at"
+        },
+        "correlation": {
+          "$ref": "#/anyOf/0/properties/correlation"
+        },
+        "context": {
+          "$ref": "#/anyOf/0/properties/context"
+        },
+        "payload": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "data": {
+                  "type": "object",
+                  "additionalProperties": {}
+                },
+                "activation_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "probe_label_pattern": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "label",
+                "data",
+                "activation_id",
+                "probe_label_pattern"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "$ref": "#/anyOf/8/properties/payload/anyOf/0/properties/label"
+                },
+                "data": {
+                  "$ref": "#/anyOf/8/properties/payload/anyOf/0/properties/data"
+                },
+                "activation_id": {
+                  "$ref": "#/anyOf/8/properties/payload/anyOf/0/properties/activation_id"
+                },
+                "probe_label_pattern": {
+                  "$ref": "#/anyOf/8/properties/payload/anyOf/0/properties/probe_label_pattern"
+                },
+                "device": {
+                  "$ref": "#/anyOf/2/properties/payload/anyOf/1/properties/device"
+                }
+              },
+              "required": [
+                "label",
+                "data",
+                "activation_id",
+                "probe_label_pattern",
+                "device"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "event_id",
+        "event_type",
+        "sdk_name",
+        "sdk_version",
+        "service",
+        "occurred_at",
+        "payload"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://debugbundle.com/schemas/event-envelope.json",
+  "$comment": "Generated by scripts/sync-evidence-fixtures.ts from EventEnvelopeSchema. Do not edit by hand."
+}

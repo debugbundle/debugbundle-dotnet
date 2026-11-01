@@ -88,6 +88,9 @@ if (client.LastEventAt == null || client.Status != DebugBundleStatus.Healthy)
     throw new InvalidOperationException("The installed SDK did not acknowledge successful delivery.");
 }
 
+await EvidenceSmoke.RunAsync();
+await RelaySmoke.RunAsync();
+
 var exportedTypes = new[]
 {
     typeof(DebugBundleClient),

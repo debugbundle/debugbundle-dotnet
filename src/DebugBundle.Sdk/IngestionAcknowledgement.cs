@@ -13,7 +13,14 @@ internal sealed class IngestionAcknowledgementDecision
 {
     public IngestionAcknowledgementKind Kind { get; set; }
     public int Accepted { get; set; }
+    public IReadOnlyList<IngestionRejection> TerminalErrors { get; set; } = Array.Empty<IngestionRejection>();
     public IReadOnlyCollection<int> RetryableIndices { get; set; } = Array.Empty<int>();
+}
+
+internal sealed class IngestionRejection
+{
+    internal int Index { get; set; }
+    internal string Reason { get; set; } = string.Empty;
 }
 
 internal static class IngestionAcknowledgement
@@ -62,6 +69,7 @@ internal static class IngestionAcknowledgement
 
             var seen = new HashSet<int>();
             var retryableIndices = new HashSet<int>();
+            var terminal = new List<IngestionRejection>();
             foreach (var error in errorsElement.EnumerateArray())
             {
                 if (error.ValueKind != JsonValueKind.Object ||
@@ -80,13 +88,15 @@ internal static class IngestionAcknowledgement
                 {
                     retryableIndices.Add(index);
                 }
+                else terminal.Add(new IngestionRejection { Index = index, Reason = reasonElement.GetString()! });
             }
 
             return new IngestionAcknowledgementDecision
             {
                 Kind = IngestionAcknowledgementKind.Acknowledged,
                 Accepted = accepted,
-                RetryableIndices = retryableIndices
+                RetryableIndices = retryableIndices,
+                TerminalErrors = terminal
             };
         }
         catch (JsonException)

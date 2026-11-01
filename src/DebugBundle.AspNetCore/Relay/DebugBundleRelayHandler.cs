@@ -6,13 +6,14 @@ using Microsoft.AspNetCore.Http;
 
 namespace DebugBundle.AspNetCore.Relay;
 
-public static class DebugBundleRelayHandler
+public static partial class DebugBundleRelayHandler
 {
     private const string BrowserSdkName = "@debugbundle/sdk-browser";
     private const string DeliveredMarkerSuffix = ".delivered";
     private static readonly HashSet<string> AcceptedEventTypes = new(StringComparer.Ordinal)
     {
         "frontend_exception",
+        "diagnostic_context",
         "error_suppressed",
         "frontend_breadcrumb",
         "request_event",
@@ -95,8 +96,10 @@ public static class DebugBundleRelayHandler
             return;
         }
 
+        var opted = context.Request.Headers["X-DebugBundle-Evidence"].ToString() == "1" || context.Request.Query["debugbundle_evidence"].ToString() == "1";
+        var state = RelayEvidenceState.For(sdkOptions, relayOptions, ProjectToken(sdkOptions));
         var accepted = new List<DebugBundleEventEnvelope>();
-        var errors = new List<string>();
+        var errors = new List<object>();
         for (var index = 0; index < payload.Batch.Count; index++)
         {
             try
@@ -105,13 +108,13 @@ public static class DebugBundleRelayHandler
             }
             catch (InvalidRelayEventException exception)
             {
-                errors.Add($"batch[{index}]: {exception.Message}");
+                errors.Add(opted ? new { index, reason = "invalid_event" } : (object)$"batch[{index}]: {exception.Message}");
             }
         }
 
         if (accepted.Count > 0)
         {
-            var delivered = await DeliverAcceptedAsync(accepted, sdkOptions, relayOptions, cancellationToken).ConfigureAwait(false);
+            var delivered = await DeliverAcceptedAsync(accepted, sdkOptions, relayOptions, state, cancellationToken).ConfigureAwait(false);
             if (!delivered)
             {
                 context.Response.StatusCode = StatusCodes.Status500InternalServerError;
@@ -121,76 +124,9 @@ public static class DebugBundleRelayHandler
 
         await WriteJsonAsync(
             context,
-            errors.Count == 0 ? StatusCodes.Status202Accepted : StatusCodes.Status400BadRequest,
-            new RelayResponse(accepted.Count, errors.Count, errors),
+            opted || errors.Count == 0 ? StatusCodes.Status202Accepted : StatusCodes.Status400BadRequest,
+            new RelayResponse(accepted.Count, errors.Count, errors, opted ? state.Descriptor() : null),
             cancellationToken).ConfigureAwait(false);
-    }
-
-    private static async Task<bool> DeliverAcceptedAsync(
-        IReadOnlyList<DebugBundleEventEnvelope> accepted,
-        DebugBundleOptions sdkOptions,
-        DebugBundleRelayOptions relayOptions,
-        CancellationToken cancellationToken)
-    {
-        var projectMode = sdkOptions.ProjectMode;
-        var token = ProjectToken(sdkOptions);
-
-        if (projectMode == DebugBundleProjectMode.LocalOnly)
-        {
-            return (await SendWithFileTransportAsync(sdkOptions.LocalEventsDir, accepted, token, cancellationToken).ConfigureAwait(false)).Delivered;
-        }
-
-        if (relayOptions.DurableWrite)
-        {
-            var spoolResult = await SendWithFileTransportAsync(sdkOptions.SpoolDir, accepted, string.Empty, cancellationToken).ConfigureAwait(false);
-            if (!spoolResult.Delivered)
-            {
-                return false;
-            }
-
-            var delivered = await SendWithHttpTransportAsync(sdkOptions, accepted, token, cancellationToken).ConfigureAwait(false);
-            if (delivered)
-            {
-                MarkDelivered(spoolResult.WrittenFilePath);
-            }
-
-            return true;
-        }
-
-        return await SendWithHttpTransportAsync(sdkOptions, accepted, token, cancellationToken).ConfigureAwait(false);
-    }
-
-    private static async Task<FileDeliveryResult> SendWithFileTransportAsync(string root, IReadOnlyList<DebugBundleEventEnvelope> accepted, string token, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var transport = new FileEventTransport(root);
-            var result = await transport.SendAsync(new EventTransportRequest { ProjectToken = token, Events = accepted }, cancellationToken).ConfigureAwait(false);
-            return new FileDeliveryResult(result.StatusCode is >= 200 and < 300, result.WrittenFilePath);
-        }
-        catch
-        {
-            return new FileDeliveryResult(false, null);
-        }
-    }
-
-    private static async Task<bool> SendWithHttpTransportAsync(DebugBundleOptions sdkOptions, IReadOnlyList<DebugBundleEventEnvelope> accepted, string token, CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            return false;
-        }
-
-        try
-        {
-            using var transport = new HttpEventTransport(sdkOptions.Endpoint, sdkOptions.RequestTimeout);
-            var result = await transport.SendAsync(new EventTransportRequest { ProjectToken = token, Events = accepted }, cancellationToken).ConfigureAwait(false);
-            return result.StatusCode is >= 200 and < 300;
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     private static DebugBundleEventEnvelope SanitizeEvent(JsonElement candidate, DebugBundleOptions sdkOptions, DebugBundleRelayOptions relayOptions)
@@ -232,8 +168,12 @@ public static class DebugBundleRelayHandler
             envelope.Correlation = correlation.Count == 0 ? null : correlation;
         }
 
-        return TelemetryPrivacy.ProtectEvent(envelope)
+        if (candidate.TryGetProperty("context", out var context) && context.ValueKind == JsonValueKind.Object)
+            envelope.Context = JsonSerializer.Deserialize<Dictionary<string, object?>>(context.GetRawText(), JsonSerialization.Options);
+        var safe = TelemetryPrivacy.ProtectEvent(envelope, sdkOptions.RedactFields)
             ?? throw new InvalidRelayEventException("Invalid browser relay event payload.");
+        if (HasTypedEvidence(safe) && !BeforeSendProcessor.IsValid(safe)) throw new InvalidRelayEventException("Invalid browser evidence payload.");
+        return safe;
     }
 
     private static DebugBundleServiceDescriptor SanitizeService(JsonElement candidate, DebugBundleOptions sdkOptions, DebugBundleRelayOptions relayOptions)
@@ -253,7 +193,7 @@ public static class DebugBundleRelayHandler
         return new DebugBundleServiceDescriptor
         {
             Name = name!,
-            Runtime = OptionalString(serviceElement, "runtime") ?? "browser",
+            Runtime = "browser",
             Framework = OptionalString(serviceElement, "framework"),
             Environment = environment!
         };
@@ -443,7 +383,7 @@ public static class DebugBundleRelayHandler
     {
         response.Headers["Access-Control-Allow-Origin"] = origin;
         response.Headers["Access-Control-Allow-Methods"] = "POST, OPTIONS";
-        response.Headers["Access-Control-Allow-Headers"] = "content-type";
+        response.Headers["Access-Control-Allow-Headers"] = "content-type, x-debugbundle-evidence";
         response.Headers["Access-Control-Max-Age"] = "600";
         response.Headers["Vary"] = "Origin";
     }
@@ -475,23 +415,6 @@ public static class DebugBundleRelayHandler
         return FirstNonEmpty(sdkOptions.ProjectToken, Environment.GetEnvironmentVariable("DEBUGBUNDLE_TOKEN")) ?? string.Empty;
     }
 
-    private static void MarkDelivered(string? spoolPath)
-    {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(spoolPath))
-            {
-                return;
-            }
-
-            using var stream = new FileStream(spoolPath + DeliveredMarkerSuffix, FileMode.Create, FileAccess.Write, FileShare.None);
-        }
-        catch
-        {
-            // Marker failure must not turn a successfully spooled relay write into an application failure.
-        }
-    }
-
     private sealed class RelayPayload
     {
         public List<JsonElement>? Batch { get; set; }
@@ -511,16 +434,19 @@ public static class DebugBundleRelayHandler
 
     private sealed class RelayResponse
     {
-        public RelayResponse(int accepted, int rejected, IReadOnlyCollection<string> errors)
+        public RelayResponse(int accepted, int rejected, IReadOnlyCollection<object> errors, EvidenceCapabilities? evidenceCapabilities = null)
         {
             Accepted = accepted;
             Rejected = rejected;
             Errors = errors;
+            EvidenceCapabilities = evidenceCapabilities;
         }
 
         public int Accepted { get; }
         public int Rejected { get; }
-        public IReadOnlyCollection<string> Errors { get; }
+        public IReadOnlyCollection<object> Errors { get; }
+        [System.Text.Json.Serialization.JsonPropertyName("evidence_capabilities")]
+        public EvidenceCapabilities? EvidenceCapabilities { get; }
     }
 
     private sealed class InvalidRelayEventException : Exception

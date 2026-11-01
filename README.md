@@ -16,6 +16,59 @@ This repository follows `spec/sdks/csharp-sdk.md`. The implemented package famil
 - `DebugBundle.AzureFunctions.Worker` Azure Functions isolated worker middleware.
 - xUnit coverage for universal API, redaction, suppression, transports, ASP.NET Core request capture, relay controls, framework integrations, and logger adapters.
 
+## Evidence candidate 2.1
+
+This unpublished candidate adds bounded native inner/aggregate graphs and execution
+context when `CaptureExceptionEvidence` (default true) and complete reader proof
+permit them. Native graph inspection uses base exception getters on the existing
+weak-reference worker; unsupported overrides remain unavailable. Existing outer
+message/stack and grouping stay authoritative. Observed AppDomain/unobserved-task
+failures use two nodes/eight total frames/4KiB combined optional metadata and bypass
+hooks, projections and custom sampling. Delivery remains best effort at termination.
+
+Hooks may change any schema-allowed field including ID/type. Complete owned schema,
+semantic and privacy validation run again after a valid replacement. Invalid or
+throwing hooks preserve the protected original; unsafe/exhausted validation and
+unfit accepted primaries are withheld. Optional reduction preserves the latest
+accepted primary. Hooks and sampling run once, including retries and held tails.
+Native requests count actual serialized bytes and remain within 256KiB. Identity
+UTF-8 replies are bounded to 256KiB with one connection/body deadline. Custom HTTP
+handlers must honour cancellation. Existing native config/ACKs discover reader
+support; file/custom policy polling cannot qualify an unrelated reader path.
+`EvidenceCapabilities` is an explicit pin for the entire delivery and reader path.
+
+Use `BeginOperation(new DebugBundleOperationOptions { Kind = "job", Name = "invoice.run" })`
+or `RunWithOperationContext[Async]` around known work. `Limit` describes the configured
+limit, never remaining time. Scope disposal revokes copied async owners. ASP.NET,
+gRPC, Worker, Hangfire and Azure invocation adapters provide their applicable
+request/job ownership. Existing `IDebugBundleClient` implementors remain compatible
+through optional capability interfaces and extension methods.
+
+Explicit recovery is off by default. Set `CaptureRecoveryObservations = true`,
+provide reader proof for `recovery_v1`, create fresh UUID v4 failure and attempt IDs,
+and associate the exception with `EvidenceContext.ForFailure(failureRef)`. Inside
+the same operation, call `CaptureRecovery(new RecoveryObservation { FailureRef =
+failureRef, AttemptId = attemptId, State = "attempt_started" })`. Other explicit
+states are `attempt_completed`, `attempt_failed`, `recovery_observed` and
+`failure_persisted`; completion/HTTP 200 never implies semantic recovery. An explicit
+`EvidenceScope` supports association beyond a disposed operation. Page scope also
+requires the matching nonempty session correlation. Recovery names are safe labels,
+not identifiers, URLs or arbitrary objects. Metadata and pending observations share
+64KiB, 50 windows, five attempts, 20 observations and five minutes; pending offline
+receipts prevent allowance renewal.
+
+Browser relays preserve closed evidence DTOs and protected context with server-owned
+identity. `X-DebugBundle-Evidence: 1` or `debugbundle_evidence=1` opts into indexed
+202 acknowledgements and the complete-path descriptor; legacy mixed-batch 400/string
+responses remain compatible. Durable files retain evidence before native forwarding;
+forwarded chunks apply current reader proof and count server credentials. One shared
+maximum five-second deadline spans chunks and compatible fallback. The optional
+`DebugBundleRelayOptions.ForwardTransport` supports explicit custom forwarders;
+legacy status-only success leaves a durable spool pending. A held custom forwarder
+occupies one bounded worker. Only complete canonical downstream acceptance creates
+an exclusive private delivered marker. Review/disable new evidence capture before
+adopting it in consumer applications. Runtime/artifact qualification is still open.
+
 ## Installation
 
 ```bash
@@ -216,3 +269,34 @@ make verify
 The built-in HTTP transport requires the canonical ingestion acknowledgement (`accepted`, `rejected`, and `errors`). Empty responses, unrelated JSON, malformed counts, or invalid rejection indices retain the full batch with backoff. Valid acknowledgements remove accepted and terminally rejected events and retry only the indexed retryable rejections; an all-rejected batch does not advance `lastEventAt`.
 
 File transports and explicitly supplied custom/legacy transports retain their documented bodyless success fallback. A custom transport that returns acknowledgement fields must return the complete canonical shape. Retry hints are bounded to five minutes, and failures remain contained within the SDK's existing delivery path.
+
+## Probe checkpoint guidance
+
+Application instrumentation supplies probe labels and bounded data. Deploy a new
+checkpoint before activating it. Remote activation affects future matching calls
+when policy permits; it does not inject code or recover unretained measurements.
+Built-in runtime/error/device collectors keep their documented SDK settings.
+
+Use fixed labels and allowlisted technical states: `media.preview.checkpoint`
+(stage/input kind/attempt), `auth.session.checkpoint` (observed session presence
+and result), `job.dependency.checkpoint` (named dependency/attempt/result), or
+`cache.preview.checkpoint` (hit/miss/coarse age bucket). Omit customer identifiers,
+tokens/cookies, cache keys, URLs and raw payloads. HTTP 200 or attempt completion
+alone does not establish semantic recovery.
+
+Empty probe data means no matching retained observation for the selected sample
+window. It does not confirm activation delivery to every SDK or execution of a
+label. Check the deployed SDK/wrapper version, instrumentation, scope, expiry,
+policy, sampling and delivery receipts. See the [probe recipes](https://debugbundle.com/docs/probes#bounded-checkpoint-recipes).
+
+## Evidence performance comparison
+
+`make evidence-performance` compares the same 20 native exception/recovery pairs
+with evidence disabled/enabled and an empty/full warning queue. It reports caller
+time and allocated bytes separately from deferred flush elapsed time and process
+allocations, plus retained queue/diagnostic bytes. The deferred stage includes the
+full pressure queue and runtime overhead. Setup, native error creation and queue
+seeding are excluded. One warm-up and three reported repetitions run with local-only
+configuration, an in-memory transport and Docker networking disabled. The harness
+checks native causes, original failure retention and existing byte/count ceilings.
+Use `DOTNET_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0 SMOKE_TFM=net10.0` for .NET 10.

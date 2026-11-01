@@ -6,6 +6,25 @@ namespace DebugBundle.Sdk.Tests;
 public sealed class FacadeAndConsoleTests
 {
     [Fact]
+    public async Task StaticOperationAndRecoverySurfacePreservesResultsAndOwnedScopes()
+    {
+        var transport = new FakeTransport();
+        using var client = global::DebugBundle.DebugBundle.Init(new DebugBundleOptions { ProjectMode = DebugBundleProjectMode.LocalOnly, Transport = transport, CaptureRecoveryObservations = true, EvidenceCapabilities = new EvidenceCapabilities { Features = new[] { "exception_evidence_v1", "recovery_v1" } } });
+        var options = new DebugBundleOperationOptions { Kind = "command" }; var failure = Guid.NewGuid().ToString("D"); var attempt = Guid.NewGuid().ToString("D");
+        using (var scope = global::DebugBundle.DebugBundle.BeginOperation(options))
+        {
+            Assert.NotNull(scope.OperationId); global::DebugBundle.DebugBundle.CaptureException(new Exception("manual fixture"), EvidenceContext.ForFailure(failure));
+            global::DebugBundle.DebugBundle.CaptureRecovery(new RecoveryObservation { FailureRef = failure, AttemptId = attempt, State = "attempt_started" });
+            IDebugBundleClient adapter = new StaticDebugBundleClient(); adapter.CaptureRecovery(new RecoveryObservation { FailureRef = failure, AttemptId = attempt, State = "attempt_completed" });
+        }
+        Assert.Equal(42, global::DebugBundle.DebugBundle.RunWithOperationContext(options, () => { global::DebugBundle.DebugBundle.CaptureException(new Exception("result fixture")); return 42; }));
+        global::DebugBundle.DebugBundle.RunWithOperationContext(options, () => global::DebugBundle.DebugBundle.CaptureException(new Exception("action fixture")));
+        Assert.Equal(43, await global::DebugBundle.DebugBundle.RunWithOperationContextAsync(options, async () => { await Task.Yield(); global::DebugBundle.DebugBundle.CaptureException(new Exception("async result fixture")); return 43; }));
+        await global::DebugBundle.DebugBundle.RunWithOperationContextAsync(options, async () => { await Task.Yield(); global::DebugBundle.DebugBundle.CaptureException(new Exception("async action fixture")); });
+        await client.FlushAsync(); var events = transport.Batches.SelectMany(batch => batch).ToArray(); Assert.Equal(7, events.Length); Assert.Equal(2, events.Count(item => item.EventType == "diagnostic_context")); Assert.All(events.Where(item => item.EventType == "backend_exception"), item => Assert.True(item.Payload.ContainsKey("execution")));
+    }
+
+    [Fact]
     public async Task Static_Facade_Forwards_The_Full_Universal_Surface()
     {
         var transport = new FakeTransport();

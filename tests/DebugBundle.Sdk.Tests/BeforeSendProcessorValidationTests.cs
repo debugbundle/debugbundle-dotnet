@@ -12,10 +12,10 @@ public sealed class BeforeSendProcessorValidationTests
             ["message"] = "failed",
             ["stack"] = "stack",
             ["handled"] = true,
-            ["request"] = new Dictionary<string, object?>(),
-            ["response"] = new Dictionary<string, object?>(),
-            ["runtime"] = new Dictionary<string, object?>(),
-            ["probe_data"] = new Dictionary<string, object?>()
+            ["request"] = new Dictionary<string, object?> { ["method"] = "GET", ["path"] = "/", ["query"] = new Dictionary<string, object?>(), ["headers"] = new Dictionary<string, object?>() },
+            ["response"] = new Dictionary<string, object?> { ["status_code"] = 503 },
+            ["runtime"] = new Dictionary<string, object?> { ["version"] = "fixture" },
+            ["probe_data"] = new Dictionary<string, object?> { ["version"] = 1, ["items"] = new List<object?>() }
         });
         yield return Case("request_event", new()
         {
@@ -35,7 +35,7 @@ public sealed class BeforeSendProcessorValidationTests
         });
         yield return Case("frontend_breadcrumb", new()
         {
-            ["breadcrumb_type"] = "navigation",
+            ["breadcrumb_type"] = "route_change",
             ["data"] = new Dictionary<string, object?>()
         });
         yield return Case("frontend_exception", new()
@@ -43,8 +43,9 @@ public sealed class BeforeSendProcessorValidationTests
             ["name"] = "Error",
             ["message"] = "failed",
             ["stack"] = "stack",
+            ["browser"] = new Dictionary<string, object?> { ["name"] = "fixture", ["version"] = "1" },
             ["breadcrumbs"] = new List<object?>(),
-            ["probe_data"] = new Dictionary<string, object?>()
+            ["probe_data"] = new Dictionary<string, object?> { ["version"] = 1, ["items"] = new List<object?>() }
         });
         yield return Case("deploy_metadata", new()
         {
@@ -52,15 +53,15 @@ public sealed class BeforeSendProcessorValidationTests
             ["version"] = "1.2.3",
             ["branch"] = "main",
             ["environment"] = "production",
-            ["deployed_at"] = DateTimeOffset.UtcNow.ToString("O")
+            ["deployed_at"] = DateTimeOffset.UtcNow.UtcDateTime.ToString("O")
         });
         yield return Case("error_suppressed", new()
         {
             ["fingerprint"] = "fingerprint",
             ["suppressed_count"] = 2,
             ["window_seconds"] = 60,
-            ["first_seen"] = DateTimeOffset.UtcNow.AddMinutes(-1).ToString("O"),
-            ["last_seen"] = DateTimeOffset.UtcNow.ToString("O")
+            ["first_seen"] = DateTimeOffset.UtcNow.AddMinutes(-1).UtcDateTime.ToString("O"),
+            ["last_seen"] = DateTimeOffset.UtcNow.UtcDateTime.ToString("O")
         });
         yield return Case("probe_event", new()
         {
@@ -135,7 +136,7 @@ public sealed class BeforeSendProcessorValidationTests
                 Runtime = ".NET",
                 Environment = "test"
             },
-            OccurredAt = DateTimeOffset.UtcNow.ToString("O"),
+            OccurredAt = DateTimeOffset.UtcNow.UtcDateTime.ToString("O"),
             Correlation = new Dictionary<string, object?> { ["trace_id"] = "trace" },
             Context = new Dictionary<string, object?> { ["items"] = new[] { 1, 2 } },
             Payload = payload

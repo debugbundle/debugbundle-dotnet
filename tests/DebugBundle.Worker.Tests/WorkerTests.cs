@@ -8,6 +8,19 @@ namespace DebugBundle.Worker.Tests;
 public sealed class WorkerTests
 {
     [Fact]
+    public async Task WorkerOperationCapturesJobEvidenceAndRevokesItsCopiedOwner()
+    {
+        var transport = new EvidenceTransport();
+        using var client = DebugBundleClient.Create(new DebugBundleOptions { ProjectMode = DebugBundleProjectMode.LocalOnly, Transport = transport, EvidenceCapabilities = new EvidenceCapabilities { Features = new[] { "exception_evidence_v1" } } });
+        ExecutionContext? copied = null; var original = new InvalidOperationException("job fixture");
+        Assert.Same(original, await Assert.ThrowsAsync<InvalidOperationException>(() => client.CaptureOperationAsync("fixture.run", (_, _) => { copied = ExecutionContext.Capture(); throw original; })));
+        ExecutionContext.Run(copied!, _ => client.CaptureException(new Exception("late fixture")), null);
+        await client.FlushAsync(); var failures = transport.Events.Where(item => item.EventType == "backend_exception").ToArray();
+        Assert.Equal("job", ((Dictionary<string, object?>)failures[0].Payload["execution"]!)["kind"]);
+        Assert.False(failures[1].Payload.ContainsKey("execution"));
+    }
+
+    [Fact]
     public async Task CaptureOperationAsync_Captures_Context_And_Rethrows()
     {
         var client = new FakeClient();

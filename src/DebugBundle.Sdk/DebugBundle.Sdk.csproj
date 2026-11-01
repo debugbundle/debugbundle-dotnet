@@ -12,6 +12,7 @@
     <PackageReference Include="System.Text.Json" Version="8.0.5" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="event-envelope.schema.json" LogicalName="DebugBundle.EventEnvelopeSchema.json" />
     <None Include="../../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 </Project>

@@ -18,6 +18,7 @@ public static class DebugBundleWorkerClientExtensions
             return;
         }
 
+        using var operationScope = client.BeginOperation(new DebugBundleOperationOptions { Kind = "job", Name = operationName });
         var operationContext = new DebugBundleOperationContext(operationName);
         using var scope = client.BeginScope(new Dictionary<string, object?> { ["operation"] = operationContext.OperationName });
         try
@@ -51,6 +52,7 @@ public static class DebugBundleWorkerClientExtensions
             return default!;
         }
 
+        using var operationScope = client.BeginOperation(new DebugBundleOperationOptions { Kind = "job", Name = operationName });
         var operationContext = new DebugBundleOperationContext(operationName);
         using var scope = client.BeginScope(new Dictionary<string, object?> { ["operation"] = operationContext.OperationName });
         try

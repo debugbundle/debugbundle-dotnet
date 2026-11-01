@@ -4,6 +4,8 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <None Include="../fixtures/event-envelope.schema.json" Link="fixtures/event-envelope.schema.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../fixtures/evidence-wire-cases.json" Link="fixtures/evidence-wire-cases.json" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="coverlet.collector" Version="6.0.2" PrivateAssets="all" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageReference Include="xunit" Version="2.9.2" />

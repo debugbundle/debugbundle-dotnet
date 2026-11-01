@@ -1,6 +1,6 @@
 namespace DebugBundle;
 
-public static class DebugBundle
+public static partial class DebugBundle
 {
     private static readonly object Sync = new();
     private static DebugBundleClient? _client;
@@ -185,14 +185,14 @@ public static class DebugBundle
 
     private static void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs args)
     {
-        CaptureException(args.Exception, new Dictionary<string, object?> { ["source"] = "task_scheduler_unobserved" });
+        Current?.CaptureFatal(args.Exception, new Dictionary<string, object?> { ["source"] = "task_scheduler_unobserved" });
     }
 
     private static void OnUnhandledException(object sender, UnhandledExceptionEventArgs args)
     {
         if (args.ExceptionObject is Exception exception)
         {
-            CaptureException(exception, new Dictionary<string, object?>
+            Current?.CaptureFatal(exception, new Dictionary<string, object?>
             {
                 ["source"] = "app_domain_unhandled",
                 ["is_terminating"] = args.IsTerminating

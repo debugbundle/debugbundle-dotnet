@@ -11,6 +11,20 @@ namespace DebugBundle.AspNetCore.Tests;
 public sealed class MiddlewareTests
 {
     [Fact]
+    public async Task RequestOperationEndsWithMiddlewareEvenInCopiedExecutionContexts()
+    {
+        var transport = new EvidenceTransport();
+        using var client = DebugBundleClient.Create(new DebugBundleOptions { ProjectMode = DebugBundleProjectMode.LocalOnly, Transport = transport, EvidenceCapabilities = new EvidenceCapabilities { Features = new[] { "exception_evidence_v1" } } });
+        ExecutionContext? copied = null; var original = new InvalidOperationException("request fixture");
+        var middleware = new DebugBundleMiddleware(_ => { copied = ExecutionContext.Capture(); throw original; }, client);
+        Assert.Same(original, await Assert.ThrowsAsync<InvalidOperationException>(() => middleware.InvokeAsync(new DefaultHttpContext())));
+        ExecutionContext.Run(copied!, _ => client.CaptureException(new Exception("late fixture")), null);
+        await client.FlushAsync(); var failures = transport.Events.Where(item => item.EventType == "backend_exception").ToArray();
+        Assert.Equal("request", ((Dictionary<string, object?>)failures[0].Payload["execution"]!)["kind"]);
+        Assert.False(failures[1].Payload.ContainsKey("execution"));
+    }
+
+    [Fact]
     public async Task Middleware_Captures_Request_Metadata_And_Rethrows_Exceptions()
     {
         var fakeClient = new FakeClient();

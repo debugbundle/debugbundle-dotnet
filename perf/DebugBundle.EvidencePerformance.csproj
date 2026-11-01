@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <EvidenceTargetFramework Condition="'$(EvidenceTargetFramework)' == ''">net8.0</EvidenceTargetFramework>
+    <TargetFramework>$(EvidenceTargetFramework)</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../src/DebugBundle.Sdk/DebugBundle.Sdk.csproj" />
+  </ItemGroup>
+</Project>

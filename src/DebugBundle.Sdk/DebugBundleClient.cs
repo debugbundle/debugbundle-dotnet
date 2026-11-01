@@ -4,9 +4,10 @@ using DebugBundle.Transport;
 
 namespace DebugBundle;
 
-public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
+public sealed partial class DebugBundleClient : IDebugBundleClient, IDebugBundleEvidenceClient, IDisposable
 {
     private readonly object _sync = new();
+    private readonly EvidenceDeliveryState _evidence;
     private readonly ResolvedDebugBundleOptions _options;
     private readonly IEventTransport? _transport;
     private readonly IRemoteConfigFetcher? _remoteConfigFetcher;
@@ -27,6 +28,7 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
     private DebugBundleClient(ResolvedDebugBundleOptions options)
     {
         _options = options;
+        _evidence = new EvidenceDeliveryState(options.EvidenceCapabilities);
         _redactor = new DebugBundleRedactor(options.RedactFields);
         _probes = new ProbeBuffer(options.MaxProbeLabels, options.MaxProbeEntriesPerLabel);
         _buffer = new List<DebugBundleEventEnvelope>(options.BatchSize);
@@ -58,7 +60,9 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
 
     public static DebugBundleClient Create(DebugBundleOptions options) => new(options.Resolve());
 
-    public void CaptureException(Exception? exception, IDictionary<string, object?>? context = null)
+    public void CaptureException(Exception? exception, IDictionary<string, object?>? context = null) => CaptureExceptionCore(exception, context, false);
+    internal void CaptureFatal(Exception? exception, IDictionary<string, object?>? context = null) => CaptureExceptionCore(exception, context, true);
+    private void CaptureExceptionCore(Exception? exception, IDictionary<string, object?>? context, bool fatal)
     {
         if (exception == null)
         {
@@ -74,7 +78,7 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
             {
                 ["name"] = exception.GetType().FullName ?? exception.GetType().Name,
                 ["message"] = message,
-                ["handled"] = true,
+                ["handled"] = !fatal,
                 ["stack"] = summary["stack"],
                 ["request"] = new Dictionary<string, object?>
                 {
@@ -109,7 +113,7 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
                 }
             }
 
-            Capture("backend_exception", payload, exceptionContext, exception);
+            Capture("backend_exception", payload, exceptionContext, exception, fatal: fatal);
         }
         catch { /* Malformed host exceptions cannot escape the public capture boundary. */ }
     }
@@ -230,8 +234,7 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
         {
             try
             {
-                var protectedContext = (Dictionary<string, object?>)TelemetryPrivacy.Protect(
-                    new Dictionary<string, object?> { [key] = value }, _options.RedactFields)!;
+                var protectedContext = SafeContext(new Dictionary<string, object?> { [key] = value }, _options.RedactFields);
                 if (!protectedContext.TryGetValue(key, out safe)) return;
             }
             catch { return; }
@@ -301,231 +304,13 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
         RecordProbe(label, value, activations);
     }
 
-    private async Task FlushCoreAsync(CancellationToken cancellationToken)
-    {
-        List<DebugBundleEventEnvelope>? batchToRestore = null;
-        Dictionary<DebugBundleEventEnvelope, int> batchSizes = new();
-        Dictionary<string, PressureCount> pressure;
-        try
-        {
-            IEventTransport? transport;
-            List<DebugBundleEventEnvelope> batch;
-            lock (_sync)
-            {
-                if (_disposed || _transport == null)
-                {
-                    return;
-                }
-
-                if (_retryUntil != null && DateTimeOffset.UtcNow < _retryUntil.Value)
-                {
-                    Status = DebugBundleStatus.Degraded;
-                    ScheduleRetryLocked();
-                    return;
-                }
-
-                transport = _transport;
-                batch = new List<DebugBundleEventEnvelope>(_buffer);
-                batchToRestore = batch;
-                batchSizes = new Dictionary<DebugBundleEventEnvelope, int>(_queuedSizes);
-                MoveQueueToInFlightLocked();
-                pressure = DrainPressureLocked();
-                _flushTimer?.Dispose();
-                _flushTimer = null;
-            }
-
-            for (var index = 0; index < batch.Count;)
-            {
-                var captured = batch[index];
-                var firstPreparation = captured.PendingSampling;
-                var sampled = true;
-                if (captured.PendingSampling)
-                {
-                    captured.PendingSampling = false;
-                    try { sampled = _options.RandomSource() <= _options.SampleRate; }
-                    catch { sampled = false; }
-                }
-                DebugBundleEventEnvelope? projected = null;
-                if (sampled)
-                {
-                    ExceptionProjection.Enrich(captured);
-                    var projection = captured.PendingProjection;
-                    captured.PendingProjection = null;
-                    try { projection?.Invoke(captured); } catch { /* Preserve the safe capture snapshot. */ }
-                    projected = TelemetryPrivacy.ProtectEvent(captured, _options.RedactFields);
-                    if (projected != null && firstPreparation && projected.EventType != "probe_event")
-                    {
-                        var occurredAt = DateTimeOffset.TryParse(projected.OccurredAt, out var capturedAt) ? capturedAt : DateTimeOffset.UtcNow;
-                        if (!_suppression.ShouldCapture(SuppressionTracker.Fingerprint(projected.EventType, projected.Payload), occurredAt)) projected = null;
-                    }
-                }
-                var prepared = projected == null ? null : BeforeSendProcessor.Apply(projected, _options.BeforeSend);
-                var safe = prepared == null ? null : TelemetryPrivacy.ProtectEvent(prepared, _options.RedactFields);
-                if (safe != null && !ShouldCapturePreparedEvent(safe)) safe = null;
-                var bytes = safe == null ? 0 : EventBytes(safe);
-                lock (_sync)
-                {
-                    ReleasePreparedOriginalLocked(captured, batchSizes[captured]);
-                    batchSizes.Remove(captured);
-                    if (safe != null && ReservePreparedLocked(safe, bytes))
-                    {
-                        batch[index++] = safe;
-                        batchSizes[safe] = bytes;
-                    }
-                    else
-                    {
-                        batch.RemoveAt(index);
-                    }
-                }
-            }
-
-            foreach (var entry in pressure)
-            {
-                var kind = entry.Key;
-                var dropped = entry.Value;
-                var aggregate = BuildEnvelope("error_suppressed", new Dictionary<string, object?>
-                {
-                    ["fingerprint"] = SuppressionTracker.Fingerprint("queue_pressure", new Dictionary<string, object?> { ["name"] = kind }),
-                    ["suppressed_count"] = dropped.Count,
-                    ["first_seen"] = dropped.First.ToString("O"),
-                    ["last_seen"] = dropped.Last.ToString("O"),
-                    ["window_seconds"] = 60,
-                    ["reason"] = "queue_pressure",
-                    ["level"] = kind
-                }, null);
-                var safeAggregate = TelemetryPrivacy.ProtectEvent(aggregate, _options.RedactFields);
-                var preparedAggregate = safeAggregate == null ? null : BeforeSendProcessor.Apply(safeAggregate, _options.BeforeSend);
-                preparedAggregate = preparedAggregate == null ? null : TelemetryPrivacy.ProtectEvent(preparedAggregate, _options.RedactFields);
-                if (preparedAggregate != null && BeforeSendProcessor.IsValid(preparedAggregate))
-                {
-                    AddPreparedAggregate(batch, batchSizes, preparedAggregate);
-                }
-            }
-
-            foreach (var aggregate in _suppression.DrainAggregates(DateTimeOffset.UtcNow))
-            {
-                var aggregateEnvelope = BuildEnvelope("error_suppressed", new Dictionary<string, object?>
-                {
-                    ["fingerprint"] = aggregate.Fingerprint,
-                    ["suppressed_count"] = aggregate.SuppressedCount,
-                    ["first_seen"] = aggregate.FirstSeen.ToString("O"),
-                    ["last_seen"] = aggregate.LastSeen.ToString("O"),
-                    ["window_seconds"] = aggregate.WindowSeconds
-                }, null);
-                var safeAggregate = TelemetryPrivacy.ProtectEvent(aggregateEnvelope, _options.RedactFields);
-                var preparedAggregate = safeAggregate == null ? null : BeforeSendProcessor.Apply(safeAggregate, _options.BeforeSend);
-                preparedAggregate = preparedAggregate == null ? null : TelemetryPrivacy.ProtectEvent(preparedAggregate, _options.RedactFields);
-                if (preparedAggregate != null && BeforeSendProcessor.IsValid(preparedAggregate))
-                {
-                    AddPreparedAggregate(batch, batchSizes, preparedAggregate);
-                }
-            }
-
-            if (batch.Count == 0)
-            {
-                lock (_sync) ReleaseInFlightLocked();
-                return;
-            }
-
-            var response = await transport.SendAsync(new EventTransportRequest
-            {
-                ProjectToken = _options.ProjectToken,
-                Events = batch
-            }, cancellationToken).ConfigureAwait(false);
-            batchToRestore = null;
-
-            lock (_sync)
-            {
-                ReleaseInFlightLocked();
-                if (response.StatusCode == 429 || response.StatusCode >= 500)
-                {
-                    RestoreBatchLocked(batch, batchSizes);
-                    _failures++;
-                    Status = DebugBundleStatus.Degraded;
-                    _retryUntil = DateTimeOffset.UtcNow + BoundedRetryAfter(response.RetryAfter, _failures);
-                    ScheduleRetryLocked();
-                    return;
-                }
-
-                if (response.StatusCode >= 400)
-                {
-                    _failures = 0;
-                    Status = DebugBundleStatus.Healthy;
-                    return;
-                }
-
-                var acknowledgement = IngestionAcknowledgement.Decide(response.Body, batch.Count, transport is HttpEventTransport);
-                if (acknowledgement.Kind == IngestionAcknowledgementKind.ProtocolFailure)
-                {
-                    RestoreBatchLocked(batch, batchSizes);
-                    _failures++;
-                    Status = DebugBundleStatus.Degraded;
-                    _retryUntil = DateTimeOffset.UtcNow + BoundedRetryAfter(response.RetryAfter, _failures);
-                    ScheduleRetryLocked();
-                    return;
-                }
-
-                if (acknowledgement.Kind == IngestionAcknowledgementKind.Acknowledged)
-                {
-                    var retryableEvents = batch
-                        .Where((_, index) => acknowledgement.RetryableIndices.Contains(index))
-                        .ToList();
-                    if (retryableEvents.Count > 0)
-                    {
-                        RestoreBatchLocked(retryableEvents, batchSizes);
-                    }
-
-                    if (acknowledgement.Accepted > 0)
-                    {
-                        LastEventAt = DateTimeOffset.UtcNow;
-                    }
-
-                    if (retryableEvents.Count > 0)
-                    {
-                        _failures++;
-                        Status = DebugBundleStatus.Degraded;
-                        _retryUntil = DateTimeOffset.UtcNow + BoundedRetryAfter(response.RetryAfter, _failures);
-                        ScheduleRetryLocked();
-                        return;
-                    }
-
-                    _failures = 0;
-                    Status = acknowledgement.Accepted > 0
-                        ? DebugBundleStatus.Healthy
-                        : DebugBundleStatus.Disconnected;
-                    _retryUntil = null;
-                    return;
-                }
-
-                _failures = 0;
-                Status = DebugBundleStatus.Healthy;
-                LastEventAt = DateTimeOffset.UtcNow;
-                _retryUntil = null;
-            }
-        }
-        catch
-        {
-            lock (_sync)
-            {
-                ReleaseInFlightLocked();
-                if (batchToRestore is { Count: > 0 })
-                {
-                    RestoreBatchLocked(batchToRestore, batchSizes);
-                }
-
-                _failures++;
-                Status = DebugBundleStatus.Disconnected;
-                _retryUntil = DateTimeOffset.UtcNow + DefaultBackoff(_failures);
-                ScheduleRetryLocked();
-            }
-        }
-    }
-
     public void Dispose()
     {
+        Interlocked.Exchange(ref _operations.Closed, 1);
         lock (_sync)
         {
             _disposed = true;
+            _diagnostics.Clear();
             _flushTimer?.Dispose();
             _flushTimer = null;
             _remoteConfigTimer?.Dispose();
@@ -543,7 +328,7 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
         }
     }
 
-    private void Capture(string eventType, Dictionary<string, object?> payload, IDictionary<string, object?>? context = null, Exception? exception = null, Action<DebugBundleEventEnvelope>? projection = null)
+    private void Capture(string eventType, Dictionary<string, object?> payload, IDictionary<string, object?>? context = null, Exception? exception = null, Action<DebugBundleEventEnvelope>? projection = null, bool fatal = false)
     {
         try
         {
@@ -556,7 +341,7 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
                 RequestPriorityFromPayload(payload) : 1, eventType)) return;
 
             var redacted = ToDictionary(_redactor.Redact(payload));
-            var envelope = TelemetryPrivacy.ProtectEvent(BuildEnvelope(eventType, redacted, context), _options.RedactFields);
+            var envelope = ProtectCandidate(BuildEnvelope(eventType, redacted, context));
             if (envelope == null || !ShouldCapturePreparedEvent(envelope)) return;
             var eventBytes = EventBytes(envelope);
 
@@ -567,10 +352,16 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
                     return;
                 }
 
-                envelope.PendingSampling = true;
+                envelope.Fatal = fatal;
+                envelope.PendingSampling = !fatal;
                 envelope.PendingProjection = projection;
                 if (exception != null) envelope.PendingException = new WeakReference<Exception>(exception);
-                if (!AdmitLocked(envelope, eventBytes)) return;
+                if (envelope.EventType == "diagnostic_context")
+                {
+                    if (!_diagnostics.Reserve(envelope.EventId, envelope.Payload, eventBytes, DateTimeOffset.UtcNow)) return;
+                    envelope.DiagnosticId = envelope.EventId;
+                }
+                if (!AdmitLocked(envelope, eventBytes)) { ReleaseDiagnosticLocked(envelope); return; }
                 if (_buffer.Count >= Math.Min(_options.BatchSize, MaxQueuedEvents))
                 {
                     RequestFlushLocked();
@@ -589,31 +380,50 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
 
     private DebugBundleEventEnvelope BuildEnvelope(string eventType, Dictionary<string, object?> payload, IDictionary<string, object?>? context)
     {
+        if (eventType == "backend_exception" && CurrentExecution() is { } execution) payload["execution"] = execution;
         var mergedContext = BuildContext(context);
+        if (eventType is "backend_exception" or "frontend_exception") AddFailureReference(mergedContext);
         var correlation = BuildCorrelation(mergedContext, payload);
         var envelopeContext = BuildEnvelopeContext(mergedContext);
 
         return new DebugBundleEventEnvelope
         {
             EventType = eventType,
-            ProjectToken = _options.ProjectToken,
+            ProjectToken = string.IsNullOrEmpty(_options.ProjectToken) ? null : _options.ProjectToken,
             Service = new DebugBundleServiceDescriptor
             {
                 Name = _options.Service,
                 Runtime = ".net",
                 Environment = _options.Environment
             },
-            OccurredAt = DateTimeOffset.UtcNow.ToString("O"),
+            OccurredAt = DateTimeOffset.UtcNow.UtcDateTime.ToString("O"),
             Correlation = correlation.Count == 0 ? null : correlation,
             Context = envelopeContext.Count == 0 ? null : envelopeContext,
             Payload = payload
         };
     }
 
-    private static Dictionary<string, object?> SafeContext(IDictionary<string, object?> values)
+    private static Dictionary<string, object?> SafeContext(IDictionary<string, object?> values, IEnumerable<string>? additionalFields = null)
     {
-        try { return TelemetryPrivacy.Protect(values) as Dictionary<string, object?> ?? new Dictionary<string, object?>(); }
+        try
+        {
+            var safe = TelemetryPrivacy.Protect(values, additionalFields) as Dictionary<string, object?> ?? new Dictionary<string, object?>();
+            if (TelemetryPrivacy.IsSafeContainer(values)) RestoreCorrelation(values, safe);
+            return safe;
+        }
         catch { return new Dictionary<string, object?>(); }
+    }
+
+    // Canonical correlation is protected as identity text, not as arbitrary
+    // application attributes. In particular the valid session ID "0" must survive.
+    private static void RestoreCorrelation(IDictionary<string, object?> source, Dictionary<string, object?> destination)
+    {
+        foreach (var field in new[] { "trace_id", "request_id", "session_id", "user_id_hash" })
+        {
+            if (!source.TryGetValue(field, out var value)) continue;
+            if (value == null || value is string text && Equals(TelemetryPrivacy.Protect(text), text)) destination[field] = value;
+            else destination.Remove(field);
+        }
     }
 
     private Dictionary<string, object?> BuildContext(IDictionary<string, object?>? context)
@@ -649,7 +459,9 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
             AddIfMissing(result, "activity_span_id", Activity.Current.SpanId.ToString());
         }
 
-        return ToDictionary(_redactor.Redact(result));
+        var safe = ToDictionary(_redactor.Redact(result));
+        RestoreCorrelation(result, safe);
+        return safe;
     }
 
     private static Dictionary<string, object?> BuildEnvelopeContext(IReadOnlyDictionary<string, object?> context)
@@ -673,8 +485,7 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
         Copy("request_id");
         Copy("session_id");
         Copy("user_id_hash");
-        Copy("activity_trace_id");
-        Copy("activity_span_id");
+        if (!correlation.ContainsKey("trace_id") && context.TryGetValue("activity_trace_id", out var activityTrace)) correlation["trace_id"] = activityTrace;
         return correlation;
 
         void Copy(string key)
@@ -690,215 +501,6 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDisposable
                 correlation[key] = payloadValue;
             }
         }
-    }
-
-    private bool ShouldCaptureLogByPolicy(DebugBundleLogLevel level)
-    {
-        var mode = _remoteConfig.CapturePolicy.CaptureLogs;
-        return mode switch
-        {
-            "off" => false,
-            "error" => level >= DebugBundleLogLevel.Error,
-            "warning" => level >= DebugBundleLogLevel.Warning,
-            "info" => level >= DebugBundleLogLevel.Information,
-            _ => level >= DebugBundleLogLevel.Warning
-        };
-    }
-
-    private bool ShouldCaptureRequestByPolicy(int statusCode, string? requestPath, string? httpMethod)
-    {
-        var mode = _remoteConfig.CapturePolicy.CaptureRequestEvents;
-        if (mode == "all")
-        {
-            return true;
-        }
-
-        if (IsImmediateRequestFailure(statusCode, requestPath, httpMethod))
-        {
-            return true;
-        }
-
-        if (mode == "off" || mode == "filtered")
-        {
-            return false;
-        }
-
-        if (mode == "failures_only")
-        {
-            return statusCode >= 500;
-        }
-
-        return false;
-    }
-
-    private bool IsImmediateRequestFailure(int statusCode, string? requestPath = null, string? httpMethod = null)
-    {
-        if (statusCode >= 500)
-        {
-            return true;
-        }
-
-        if (_remoteConfig.CapturePolicy.ImmediateClientErrorStatuses.Contains(statusCode))
-        {
-            return true;
-        }
-
-        if (MatchesImmediateClientErrorPathRule(statusCode, requestPath, httpMethod))
-        {
-            return true;
-        }
-
-        var preset = _remoteConfig.CapturePolicy.Preset;
-        if (preset is "balanced" or "investigative" && statusCode is 408 or 423 or 424 or 425 or 429)
-        {
-            return true;
-        }
-
-        return preset == "investigative" && statusCode == 409;
-    }
-
-    private bool MatchesImmediateClientErrorPathRule(int statusCode, string? requestPath, string? httpMethod)
-    {
-        if (statusCode < 400 || statusCode > 499 || string.IsNullOrWhiteSpace(requestPath))
-        {
-            return false;
-        }
-
-        var normalizedPath = NormalizeRequestPath(requestPath!);
-        var normalizedMethod = string.IsNullOrWhiteSpace(httpMethod) ? null : httpMethod!.Trim().ToUpperInvariant();
-        foreach (var rule in _remoteConfig.CapturePolicy.ImmediateClientErrorPathRules)
-        {
-            if (rule.StatusCode != statusCode || string.IsNullOrWhiteSpace(rule.PathPattern))
-            {
-                continue;
-            }
-            if (rule.Methods.Count > 0)
-            {
-                if (rule.Methods.Count > 7)
-                {
-                    continue;
-                }
-                var ruleMethods = rule.Methods
-                    .Select(NormalizeCapturePolicyMethod)
-                    .Where(method => method != null)
-                    .ToList();
-                if (ruleMethods.Count == 0 || normalizedMethod == null || !ruleMethods.Contains(normalizedMethod))
-                {
-                    continue;
-                }
-            }
-            var pathPattern = rule.PathPattern ?? string.Empty;
-            if (pathPattern.EndsWith("*", StringComparison.Ordinal))
-            {
-                if (normalizedPath.StartsWith(pathPattern.Substring(0, pathPattern.Length - 1), StringComparison.Ordinal))
-                {
-                    return true;
-                }
-                continue;
-            }
-            if (string.Equals(normalizedPath, pathPattern, StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static string? NormalizeCapturePolicyMethod(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var normalized = value!.Trim().ToUpperInvariant();
-        return normalized is "GET" or "POST" or "PUT" or "PATCH" or "DELETE" or "HEAD" or "OPTIONS" ? normalized : null;
-    }
-
-    private static string NormalizeRequestPath(string value)
-    {
-        if (Uri.TryCreate(value, UriKind.Absolute, out var absolute) && !string.IsNullOrWhiteSpace(absolute.AbsolutePath))
-        {
-            return absolute.AbsolutePath;
-        }
-
-        var queryIndex = value.IndexOf('?');
-        var fragmentIndex = value.IndexOf('#');
-        var end = queryIndex < 0
-            ? (fragmentIndex < 0 ? value.Length : fragmentIndex)
-            : (fragmentIndex < 0 ? queryIndex : Math.Min(queryIndex, fragmentIndex));
-        var path = value.Substring(0, end);
-        return path.StartsWith("/", StringComparison.Ordinal) && path.Length > 0 ? path : "/";
-    }
-
-    private bool ShouldEmitProbeEventsByPolicy()
-    {
-        return _remoteConfig.CapturePolicy.CaptureProbeEvents == "standalone_when_activated";
-    }
-
-    private bool HasActiveRemoteProbe(DateTimeOffset now)
-    {
-        return _remoteConfig.ActiveProbes.Any(directive => DirectiveActiveAndScoped(directive, now));
-    }
-
-    private IReadOnlyList<ProbeDirective> MatchingProbeDirectives(string label, DateTimeOffset now)
-    {
-        SdkRemoteConfig config;
-        string? triggerToken = null;
-        if (DebugBundleContext.Current != null && DebugBundleContext.Current.TryGetValue("probe_trigger_token", out var tokenValue))
-        {
-            triggerToken = tokenValue as string;
-        }
-
-        lock (_sync)
-        {
-            config = _remoteConfig;
-        }
-
-        if (!config.ProbesEnabled)
-        {
-            return Array.Empty<ProbeDirective>();
-        }
-
-        var passive = config.RemoteProbesEnabled
-            ? config.ActiveProbes.Where(directive => DirectiveMatches(directive, label, now))
-            : Enumerable.Empty<ProbeDirective>();
-        var triggered = RemoteProbeTokenValidator.Validate(triggerToken, config.TriggerTokenKey, _options.Service, _options.Environment, now)
-            .Where(directive => LabelMatches(directive.LabelPattern, label));
-        return passive.Concat(triggered).ToArray();
-    }
-
-    private bool DirectiveMatches(ProbeDirective directive, string label, DateTimeOffset now)
-    {
-        return DirectiveActiveAndScoped(directive, now) && LabelMatches(directive.LabelPattern, label);
-    }
-
-    private bool DirectiveActiveAndScoped(ProbeDirective directive, DateTimeOffset now)
-    {
-        return directive.ExpiresAt > now
-            && ScopeMatches(directive.Service, _options.Service)
-            && ScopeMatches(directive.Environment, _options.Environment);
-    }
-
-    private static bool ScopeMatches(string? configured, string actual)
-    {
-        return string.IsNullOrWhiteSpace(configured) || configured == "*" || configured!.Equals(actual, StringComparison.Ordinal);
-    }
-
-    private static bool LabelMatches(string pattern, string label)
-    {
-        if (pattern == "*")
-        {
-            return true;
-        }
-
-        if (pattern.EndsWith(".*", StringComparison.Ordinal))
-        {
-            return label.StartsWith(pattern.Substring(0, pattern.Length - 1), StringComparison.Ordinal);
-        }
-
-        return pattern.Equals(label, StringComparison.Ordinal);
     }
 
 }

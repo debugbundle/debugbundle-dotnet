@@ -27,6 +27,8 @@ public sealed class RemoteConfigFetchResult
 
 public sealed class SdkRemoteConfig
 {
+    [JsonPropertyName("evidence_capabilities")]
+    public JsonElement? EvidenceCapabilities { get; set; }
     [JsonPropertyName("probes_enabled")]
     public bool ProbesEnabled { get; set; } = true;
 
@@ -86,6 +88,8 @@ public sealed class ProbeDirective
 
 public sealed class CapturePolicy
 {
+    [JsonPropertyName("capture_diagnostic_context")]
+    public bool CaptureDiagnosticContext { get; set; } = true;
     [JsonPropertyName("preset")]
     public string Preset { get; set; } = "balanced";
 
@@ -109,6 +113,7 @@ public sealed class CapturePolicy
         return new CapturePolicy
         {
             Preset = "minimal",
+            CaptureDiagnosticContext = false,
             CaptureLogs = "warning",
             CaptureRequestEvents = "failures_only",
             CaptureProbeEvents = "buffer_only"
@@ -136,13 +141,15 @@ public sealed class ImmediateClientErrorPathRule
 public sealed class HttpRemoteConfigFetcher : IRemoteConfigFetcher, IDisposable
 {
     private readonly HttpClient _httpClient;
+    private readonly TimeSpan _timeout;
     private readonly bool _ownsClient;
 
     public HttpRemoteConfigFetcher(TimeSpan timeout, HttpClient? httpClient = null)
     {
         _httpClient = httpClient ?? new HttpClient();
         _ownsClient = httpClient == null;
-        _httpClient.Timeout = timeout <= TimeSpan.Zero ? TimeSpan.FromSeconds(5) : timeout;
+        _timeout = timeout <= TimeSpan.Zero ? TimeSpan.FromSeconds(5) : timeout;
+        _httpClient.Timeout = _timeout;
     }
 
     public async Task<RemoteConfigFetchResult> FetchAsync(RemoteConfigFetchRequest request, CancellationToken cancellationToken = default)
@@ -155,19 +162,19 @@ public sealed class HttpRemoteConfigFetcher : IRemoteConfigFetcher, IDisposable
             httpRequest.Headers.TryAddWithoutValidation("If-None-Match", request.ETag);
         }
 
-        using var response = await _httpClient.SendAsync(httpRequest, cancellationToken).ConfigureAwait(false);
+        httpRequest.Headers.Add("X-DebugBundle-Evidence", "1");
+        httpRequest.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("identity"));
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(_timeout);
+        using var response = await _httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, deadline.Token).ConfigureAwait(false);
         if (response.StatusCode == System.Net.HttpStatusCode.NotModified)
         {
             return new RemoteConfigFetchResult { NotModified = true, ETag = request.ETag };
         }
 
         response.EnsureSuccessStatusCode();
-#if NET8_0_OR_GREATER
-        using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-#else
-        using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-#endif
-        var config = await JsonSerializer.DeserializeAsync<SdkRemoteConfig>(stream, Transport.JsonSerialization.Options, cancellationToken).ConfigureAwait(false) ?? SdkRemoteConfig.Balanced();
+        var body = await BoundedHttpResponse.ReadAsync(response, deadline.Token).ConfigureAwait(false);
+        var config = JsonSerializer.Deserialize<SdkRemoteConfig>(body, Transport.JsonSerialization.Options) ?? SdkRemoteConfig.Balanced();
         if (config.CapturePolicy == null)
         {
             config.CapturePolicy = CapturePolicy.Balanced();

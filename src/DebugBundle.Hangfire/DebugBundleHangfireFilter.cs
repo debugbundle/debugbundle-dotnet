@@ -5,6 +5,7 @@ namespace DebugBundle.Hangfire;
 
 public sealed class DebugBundleHangfireFilter : IServerFilter
 {
+    private const string OperationKey = "DebugBundle.Hangfire.OperationScope";
     private readonly IDebugBundleClient _client;
 
     public DebugBundleHangfireFilter()
@@ -19,22 +20,26 @@ public sealed class DebugBundleHangfireFilter : IServerFilter
 
     public void OnPerforming(PerformingContext context)
     {
+        if (context == null) return;
+        try { context.Items[OperationKey] = _client.BeginOperation(new DebugBundleOperationOptions { Kind = "job" }); }
+        catch { /* Optional operation ownership cannot affect job execution. */ }
     }
 
     public void OnPerformed(PerformedContext context)
     {
-        if (context?.Exception == null)
-        {
-            return;
-        }
-
+        if (context == null) return;
         try
         {
-            _client.CaptureException(context.Exception, BuildContext(context));
+            if (context.Exception != null) _client.CaptureException(context.Exception, BuildContext(context));
         }
         catch
         {
             // SDK integrations are fail-open and must never affect job failure handling.
+        }
+        finally
+        {
+            if (context.Items.TryGetValue(OperationKey, out var value) && value is DebugBundleOperationScope operation)
+            { context.Items.Remove(OperationKey); operation.Dispose(); }
         }
     }
 

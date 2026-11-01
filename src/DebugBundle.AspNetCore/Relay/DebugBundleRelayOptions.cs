@@ -1,3 +1,5 @@
+using DebugBundle.Transport;
+
 namespace DebugBundle.AspNetCore.Relay;
 
 public sealed class DebugBundleRelayOptions
@@ -5,6 +7,8 @@ public sealed class DebugBundleRelayOptions
     public IList<string> AllowedOrigins { get; } = new List<string>();
     public long MaxBodyBytes { get; set; } = 256 * 1024;
     public int RateLimitPerMinute { get; set; } = 60;
+    /// <summary>Optional forwarder. Legacy status-only success leaves durable spools pending.</summary>
+    public IEventTransport? ForwardTransport { get; set; }
     public bool DurableWrite { get; set; } = true;
     public bool TrustForwardedHeaders { get; set; }
     public string? Service { get; set; }

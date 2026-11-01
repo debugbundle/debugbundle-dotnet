@@ -6,6 +6,18 @@ namespace DebugBundle.Grpc.AspNetCore.Tests;
 public sealed class GrpcInterceptorTests
 {
     [Fact]
+    public async Task GrpcOwnershipEndsAfterTheCallInCopiedContexts()
+    {
+        var transport = new EvidenceTransport();
+        using var client = DebugBundleClient.Create(new DebugBundleOptions { ProjectMode = DebugBundleProjectMode.LocalOnly, Transport = transport, EvidenceCapabilities = new EvidenceCapabilities { Features = new[] { "exception_evidence_v1" } } });
+        var interceptor = new DebugBundleGrpcInterceptor(client); ExecutionContext? copied = null;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => interceptor.UnaryServerHandler<string, string>("fixture", new TestServerCallContext("/fixture/run"), (_, _) => { copied = ExecutionContext.Capture(); throw new InvalidOperationException("fixture"); }));
+        ExecutionContext.Run(copied!, _ => client.CaptureException(new Exception("late fixture")), null);
+        await client.FlushAsync(); var failures = transport.Events.Where(item => item.EventType == "backend_exception").ToArray();
+        Assert.Equal("request", ((Dictionary<string, object?>)failures[0].Payload["execution"]!)["kind"]); Assert.False(failures[1].Payload.ContainsKey("execution"));
+    }
+
+    [Fact]
     public async Task Unary_Handler_Captures_Success_Metadata()
     {
         var client = new FakeClient();

@@ -10,6 +10,7 @@ public sealed class HttpEventTransport : IEventTransport, IDisposable
 {
     private static readonly TimeSpan MaxRetryAfter = TimeSpan.FromMinutes(5);
     private readonly HttpClient _httpClient;
+    private readonly TimeSpan _timeout;
     private readonly Uri _endpoint;
     private readonly bool _ownsClient;
 
@@ -18,20 +19,26 @@ public sealed class HttpEventTransport : IEventTransport, IDisposable
         _endpoint = endpoint;
         _httpClient = httpClient ?? new HttpClient();
         _ownsClient = httpClient == null;
-        _httpClient.Timeout = timeout <= TimeSpan.Zero ? TimeSpan.FromSeconds(5) : timeout;
+        _timeout = timeout <= TimeSpan.Zero ? TimeSpan.FromSeconds(5) : timeout;
+        _httpClient.Timeout = _timeout;
     }
 
     public async Task<EventTransportResult> SendAsync(EventTransportRequest request, CancellationToken cancellationToken = default)
     {
         var body = JsonSerializer.Serialize(new { events = request.Events }, JsonSerialization.Options);
+        if (Encoding.UTF8.GetByteCount(body) > BoundedHttpResponse.MaxBytes) throw new ArgumentException("ingestion request exceeds byte limit");
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(_timeout);
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, _endpoint)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
         httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", request.ProjectToken);
 
-        using var response = await _httpClient.SendAsync(httpRequest, cancellationToken).ConfigureAwait(false);
-        var responseBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+        httpRequest.Headers.Add("X-DebugBundle-Evidence", "1");
+        httpRequest.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("identity"));
+        using var response = await _httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, deadline.Token).ConfigureAwait(false);
+        var responseBody = await BoundedHttpResponse.ReadAsync(response, deadline.Token).ConfigureAwait(false);
         return new EventTransportResult
         {
             StatusCode = (int)response.StatusCode,
@@ -39,6 +46,8 @@ public sealed class HttpEventTransport : IEventTransport, IDisposable
             Body = responseBody
         };
     }
+
+    internal bool MatchesEndpoint(Uri endpoint) => _endpoint == endpoint;
 
     public void Dispose()
     {

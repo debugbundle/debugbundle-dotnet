@@ -17,6 +17,7 @@ public sealed class DebugBundleGrpcInterceptor : Interceptor
         ServerCallContext context,
         UnaryServerMethod<TRequest, TResponse> continuation)
     {
+        using var operation = _client.BeginOperation(new DebugBundleOperationOptions { Kind = "request" });
         var startedAt = DateTimeOffset.UtcNow;
         try
         {
@@ -41,6 +42,7 @@ public sealed class DebugBundleGrpcInterceptor : Interceptor
         ServerCallContext context,
         ClientStreamingServerMethod<TRequest, TResponse> continuation)
     {
+        using var operation = _client.BeginOperation(new DebugBundleOperationOptions { Kind = "request" });
         var startedAt = DateTimeOffset.UtcNow;
         try
         {
@@ -66,6 +68,7 @@ public sealed class DebugBundleGrpcInterceptor : Interceptor
         ServerCallContext context,
         ServerStreamingServerMethod<TRequest, TResponse> continuation)
     {
+        using var operation = _client.BeginOperation(new DebugBundleOperationOptions { Kind = "request" });
         var startedAt = DateTimeOffset.UtcNow;
         try
         {
@@ -90,6 +93,7 @@ public sealed class DebugBundleGrpcInterceptor : Interceptor
         ServerCallContext context,
         DuplexStreamingServerMethod<TRequest, TResponse> continuation)
     {
+        using var operation = _client.BeginOperation(new DebugBundleOperationOptions { Kind = "request" });
         var startedAt = DateTimeOffset.UtcNow;
         try
         {

@@ -26,6 +26,7 @@ public sealed class DebugBundleMiddleware
             ["activity_trace_id"] = Activity.Current?.TraceId.ToString()
         };
 
+        using var operation = _client.BeginOperation(new DebugBundleOperationOptions { Kind = "request" });
         using var scope = _client.BeginScope(scopeValues);
         var capturedRequest = false;
         try

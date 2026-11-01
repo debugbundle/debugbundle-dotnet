@@ -19,6 +19,7 @@ public sealed class DebugBundleFunctionsMiddleware : IFunctionsWorkerMiddleware
             return;
         }
 
+        using var operation = _client.BeginOperation(new DebugBundleOperationOptions { Kind = "job" });
         var startedAt = DateTimeOffset.UtcNow;
         using var scope = _client.BeginScope(BuildScope(context));
         try

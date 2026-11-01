@@ -6,3 +6,5 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("DebugBundle.NLog")]
 [assembly: InternalsVisibleTo("DebugBundle.Serilog")]
 [assembly: InternalsVisibleTo("DebugBundle.Extensions.Logging")]
+
+[assembly: InternalsVisibleTo("DebugBundle.AspNetCore")]

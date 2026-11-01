@@ -49,6 +49,15 @@ public sealed class DebugBundleResponseInfo
 public sealed class DebugBundleEventEnvelope
 {
     [JsonIgnore]
+    internal bool Prepared { get; set; }
+
+    [JsonIgnore]
+    internal bool Fatal { get; set; }
+
+    [JsonIgnore]
+    internal string? DiagnosticId { get; set; }
+
+    [JsonIgnore]
     internal WeakReference<Exception>? PendingException { get; set; }
 
     [JsonIgnore]
@@ -80,7 +89,7 @@ public sealed class DebugBundleEventEnvelope
     public DebugBundleServiceDescriptor Service { get; set; } = new();
 
     [JsonPropertyName("occurred_at")]
-    public string OccurredAt { get; set; } = DateTimeOffset.UtcNow.ToString("O");
+    public string OccurredAt { get; set; } = DateTimeOffset.UtcNow.UtcDateTime.ToString("O");
 
     [JsonPropertyName("correlation")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -113,5 +122,5 @@ public sealed class DebugBundleServiceDescriptor
 public static class DebugBundleConstants
 {
     public const string SdkName = "@debugbundle/sdk-dotnet";
-    public const string SdkVersion = "2.0.1";
+    public const string SdkVersion = "2.1.0";
 }

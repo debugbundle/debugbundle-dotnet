@@ -1,6 +1,24 @@
 # Changelog
 
-## [Unreleased]
+## [Unreleased — 2.1.0 candidate]
+
+- Reuse immutable mandatory privacy patterns and compile bounded custom fields once
+  per protection operation, avoiding repeated allocation without sharing caller policy.
+- Add complete bounded owned hook validation from the packaged canonical schema,
+  semantic graph/resource/scope checks and receiving JSON byte vectors. Valid ID/type
+  replacements remain supported; unavailable/exhausted validation is withheld.
+- Revalidate final privacy and reduce optional metadata without restoring pre-hook
+  primary content. Emit canonical UTC Z timestamps, preserve Activity metadata in
+  context/canonical correlation and retain tokenless local capture.
+- Add native cause/aggregate evidence, revocable request/job operations, explicit
+  opt-in recovery and bounded pending receipt ownership. Keep base client implementors compatible.
+- Use callback-free bounded observed-fatal capture without changing termination semantics.
+- Fit final native request bytes and preserve accepted hook identities across retries/tails;
+  discover/revoke reader proof from existing bounded native config and acknowledgements.
+- Preserve closed browser evidence/context and server identity through relays, with opted-in
+  indexed responses, whole-forward deadlines, complete-ACK private markers and explicit custom forwarders.
+- Split the large client into existing public partial-class boundaries. Final runtime,
+  artifact, performance and whole-family release qualification remain open.
 
 ## [2.0.1] - 2026-09-26
 

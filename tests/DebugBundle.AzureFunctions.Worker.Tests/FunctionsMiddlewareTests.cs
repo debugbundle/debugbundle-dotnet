@@ -8,6 +8,18 @@ namespace DebugBundle.AzureFunctions.Worker.Tests;
 public sealed class FunctionsMiddlewareTests
 {
     [Fact]
+    public async Task FunctionOwnershipEndsAfterTheInvocationInCopiedContexts()
+    {
+        var transport = new EvidenceTransport();
+        using var client = DebugBundleClient.Create(new DebugBundleOptions { ProjectMode = DebugBundleProjectMode.LocalOnly, Transport = transport, EvidenceCapabilities = new EvidenceCapabilities { Features = new[] { "exception_evidence_v1" } } });
+        var middleware = new DebugBundleFunctionsMiddleware(client); ExecutionContext? copied = null;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => middleware.Invoke(new TestFunctionContext(), _ => { copied = ExecutionContext.Capture(); throw new InvalidOperationException("fixture"); }));
+        ExecutionContext.Run(copied!, _ => client.CaptureException(new Exception("late fixture")), null);
+        await client.FlushAsync(); var failures = transport.Events.Where(item => item.EventType == "backend_exception").ToArray();
+        Assert.Equal("job", ((Dictionary<string, object?>)failures[0].Payload["execution"]!)["kind"]); Assert.False(failures[1].Payload.ContainsKey("execution"));
+    }
+
+    [Fact]
     public async Task Invoke_Captures_Successful_Function_Invocation_Metadata()
     {
         var client = new FakeClient();

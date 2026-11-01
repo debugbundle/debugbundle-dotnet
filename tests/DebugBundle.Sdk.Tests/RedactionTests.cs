@@ -8,6 +8,31 @@ namespace DebugBundle.Sdk.Tests;
 public sealed class RedactionTests
 {
     [Fact]
+    public void Repeated_Privacy_Protection_Does_Not_Rebuild_Mandatory_Patterns()
+    {
+        const string input = "ordinary application failure";
+        for (var index = 0; index < 3; index++) TelemetryPrivacy.Protect(input);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var index = 0; index < 50; index++) TelemetryPrivacy.Protect(input);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(allocated < 50 * 100 * 1024, $"Repeated scalar protection allocated {allocated} bytes");
+    }
+
+    [Fact]
+    public async Task Concurrent_Privacy_Policies_Keep_Custom_Fields_Literal_And_Isolated()
+    {
+        await Task.WhenAll(Enumerable.Range(0, 24).Select(index => Task.Run(() =>
+        {
+            var field = $"custom.{index}";
+            var input = $"{field}=sensitive customX{index}=visible password=hidden";
+            Assert.Equal($"{field}=[REDACTED] customX{index}=visible password=[REDACTED]",
+                TelemetryPrivacy.Protect(input, new[] { field }));
+            Assert.Equal($"{field}=sensitive customX{index}=visible password=[REDACTED]",
+                TelemetryPrivacy.Protect(input));
+        })));
+    }
+
+    [Fact]
     public void Protocol_Identity_Values_Must_Pass_Privacy_Checks()
     {
         var envelope = new DebugBundleEventEnvelope { Payload = new(), Correlation = new() { ["session_id"] = "session-123" } };
