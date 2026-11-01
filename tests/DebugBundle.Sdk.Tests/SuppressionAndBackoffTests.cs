@@ -138,10 +138,7 @@ public sealed class SuppressionAndBackoffTests
         var transport = new FakeTransport();
         // Hold the automatic retry response so the intermediate degraded status
         // is observable independently of the runner's timer scheduling.
-        var retryResponse = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        transport.BeforeResponse = (call, cancellation) => call == 2
-            ? retryResponse.Task.WaitAsync(cancellation)
-            : Task.CompletedTask;
+        var retryResponse = HoldRetryResponse(transport);
         transport.EnqueueResponse(new EventTransportResult
         {
             StatusCode = 202,
@@ -198,6 +195,7 @@ public sealed class SuppressionAndBackoffTests
     public async Task Inconsistent_Acknowledgement_Retains_The_Full_Batch()
     {
         var transport = new FakeTransport();
+        var retryResponse = HoldRetryResponse(transport);
         transport.EnqueueResponse(new EventTransportResult
         {
             StatusCode = 202,
@@ -209,7 +207,7 @@ public sealed class SuppressionAndBackoffTests
             StatusCode = 202,
             Body = """{"accepted":2,"rejected":0,"errors":[]}"""
         });
-        var client = CreateClient(transport);
+        using var client = CreateClient(transport);
         client.CaptureMessage("first", DebugBundleLogLevel.Warning);
         client.CaptureMessage("second", DebugBundleLogLevel.Warning);
 
@@ -217,11 +215,21 @@ public sealed class SuppressionAndBackoffTests
 
         Assert.Equal(DebugBundleStatus.Degraded, client.Status);
         Assert.Null(client.LastEventAt);
+        retryResponse.SetResult();
         await Task.Delay(20);
         await client.FlushAsync();
 
         Assert.Equal(2, transport.Calls);
         Assert.Equal(2, transport.Batches[1].Count);
+    }
+
+    private static TaskCompletionSource HoldRetryResponse(FakeTransport transport)
+    {
+        var response = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        transport.BeforeResponse = (call, cancellation) => call == 2
+            ? response.Task.WaitAsync(cancellation)
+            : Task.CompletedTask;
+        return response;
     }
 
     private static DebugBundleClient CreateClient(FakeTransport transport)
