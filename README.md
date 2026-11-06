@@ -1,5 +1,7 @@
 # DebugBundle .NET SDK
 
+Patch 2.1.1 corrects native logger exception evidence and capture safety while preserving public APIs and event schemas. Upgrade the DebugBundle distribution to adopt the correction.
+
 DebugBundle for .NET captures backend exceptions, request metadata, structured logs, probe data, and browser relay traffic for ASP.NET Core and worker-style applications.
 
 Version 2.0 changes hook timing and bounds capture ownership. Review [the migration guide](MIGRATION-2.0.md) before upgrading from 1.x. Capture does not invoke custom exception accessors, logging formatters, collection implementations or object getters on application callers. The guide defines deferred weak-reference enrichment and supported primitive/container fallbacks.

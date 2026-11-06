@@ -1,7 +1,7 @@
 DOTNET ?= dotnet
 CONFIGURATION ?= Release
 FORMAT_ARGS ?= --verify-no-changes
-VERSION ?= 2.1.0
+VERSION ?= 2.1.1
 SMOKE_TFM ?= net8.0
 TEST_PROJECT ?= tests/DebugBundle.Sdk.Tests/DebugBundle.Sdk.Tests.csproj
 DOTNET_IMAGE ?= mcr.microsoft.com/dotnet/sdk:8.0

@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.1] - 2026-11-06
+
+- Read duplicate-capture metadata from the protected SDK snapshot instead of calling application-defined dictionary accessors.
+- Final audit: only admitted captures create one-use cross-path receipts; repeated native records remain separate. Deferred hooks or sampling retain uncertain reports rather than letting a rejected candidate suppress another.
+
+- Emit one exception for Serilog/NLog/log4net native exception records, preserving log context. Route Microsoft.Extensions.Logging error exceptions through native cause/aggregate capture while retaining deferred formatting and caller safety. Deduplicate native logger/framework reports within owned operations.
+- Public client interfaces and event schemas remain compatible. Adoption requires upgrading the SDK.
+
 ## [2.1.0] - 2026-11-01
 
 - Reuse immutable mandatory privacy patterns and compile bounded custom fields once

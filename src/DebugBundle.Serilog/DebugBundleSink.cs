@@ -26,10 +26,13 @@ public sealed class DebugBundleSink : ILogEventSink
 
         try
         {
+            if (!LoggerExceptionCapture.Eligible(_client, MapLevel(logEvent.Level))) return;
             var context = BuildContext(logEvent);
             if (logEvent.Exception != null)
             {
-                _client.CaptureException(logEvent.Exception, context);
+                context["log_message"] = logEvent.RenderMessage();
+                LoggerExceptionCapture.Capture(_client, logEvent.Exception, MapLevel(logEvent.Level), context);
+                return;
             }
 
             _client.CaptureLog(logEvent.RenderMessage(), MapLevel(logEvent.Level), context);

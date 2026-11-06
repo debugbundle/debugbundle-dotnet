@@ -8,7 +8,8 @@ internal sealed class FakeClient : IDebugBundleClient
     public DebugBundleStatus Status { get; } = DebugBundleStatus.Healthy;
     public DateTimeOffset? LastEventAt { get; }
 
-    public void CaptureException(Exception? exception, IDictionary<string, object?>? context = null) { }
+    public List<(Exception? Exception, IDictionary<string, object?>? Context)> Exceptions { get; } = new();
+    public void CaptureException(Exception? exception, IDictionary<string, object?>? context = null) { Exceptions.Add((exception, context)); }
     public void CaptureError(Exception? exception, IDictionary<string, object?>? context = null) { }
 
     public void CaptureLog(string? message, DebugBundleLogLevel level = DebugBundleLogLevel.Information, IDictionary<string, object?>? context = null)

@@ -18,9 +18,10 @@ public sealed class LoggingProviderTests
             logger.LogError(new InvalidOperationException("card failed"), "Payment retry failed for order {OrderId}", "ord_123");
         }
 
-        var captured = Assert.Single(fakeClient.Logs);
-        Assert.Equal(DebugBundleLogLevel.Error, captured.Level);
-        Assert.Equal("Payment retry failed for order ord_123", captured.Message);
+        var captured = Assert.Single(fakeClient.Exceptions);
+        Assert.Empty(fakeClient.Logs);
+        Assert.IsType<InvalidOperationException>(captured.Exception);
+        Assert.Equal("Payment retry failed for order ord_123", captured.Context!["log_message"]);
         Assert.NotNull(captured.Context);
         var context = captured.Context!;
         Assert.Equal("Checkout.Payment", context["logger.category"]);

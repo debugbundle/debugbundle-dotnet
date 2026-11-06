@@ -26,10 +26,13 @@ public sealed class DebugBundleAppender : AppenderSkeleton
 
         try
         {
+            if (!LoggerExceptionCapture.Eligible(_client, MapLevel(loggingEvent.Level))) return;
             var context = BuildContext(loggingEvent);
             if (loggingEvent.ExceptionObject != null)
             {
-                _client.CaptureException(loggingEvent.ExceptionObject, context);
+                context["log_message"] = loggingEvent.RenderedMessage;
+                LoggerExceptionCapture.Capture(_client, loggingEvent.ExceptionObject, MapLevel(loggingEvent.Level), context);
+                return;
             }
 
             _client.CaptureLog(loggingEvent.RenderedMessage, MapLevel(loggingEvent.Level), context);

@@ -27,10 +27,13 @@ public class DebugBundleTarget : Target
 
         try
         {
+            if (!LoggerExceptionCapture.Eligible(_client, MapLevel(logEvent.Level))) return;
             var context = BuildContext(logEvent);
             if (logEvent.Exception != null)
             {
-                _client.CaptureException(logEvent.Exception, context);
+                context["log_message"] = logEvent.FormattedMessage;
+                LoggerExceptionCapture.Capture(_client, logEvent.Exception, MapLevel(logEvent.Level), context);
+                return;
             }
 
             _client.CaptureLog(logEvent.FormattedMessage, MapLevel(logEvent.Level), context);

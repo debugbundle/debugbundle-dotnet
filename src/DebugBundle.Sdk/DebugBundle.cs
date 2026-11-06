@@ -4,6 +4,7 @@ public static partial class DebugBundle
 {
     private static readonly object Sync = new();
     private static DebugBundleClient? _client;
+    internal static bool CanAdmitLog(DebugBundleLogLevel level) => Current?.CanAdmitLog(level) == true;
     private static bool _taskSchedulerHooked;
     private static bool _appDomainHooked;
     private static bool _consoleErrorHooked;

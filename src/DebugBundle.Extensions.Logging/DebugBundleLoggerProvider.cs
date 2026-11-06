@@ -96,6 +96,16 @@ internal sealed class DebugBundleLogger : ILogger
         {
             var message = LogProjection.Snapshot(state, exception);
             var fields = BuildFields(logLevel, eventId, state, exception, message);
+            if (logLevel >= LogLevel.Error && _options.IncludeExceptionDetails && exception != null)
+            {
+                fields["logger"] = _categoryName;
+                fields["log_message"] = message;
+                if (client is DebugBundleClient native)
+                    native.CaptureLoggedException(exception, fields, LogProjection.Defer(state, exception, formatter));
+                else
+                    LoggerExceptionCapture.Capture(client, exception, MapLevel(logLevel), fields);
+                return;
+            }
             if (client is DebugBundleClient concrete)
                 concrete.CaptureLogWithProjection(message, MapLevel(logLevel), fields,
                     _options.IncludeExceptionDetails ? exception : null, LogProjection.Defer(state, exception, formatter));

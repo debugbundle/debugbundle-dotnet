@@ -76,6 +76,12 @@ internal static class LogProjection
             _exception?.TryGetTarget(out exception);
             var message = formatter((TState)state, exception);
             if (string.IsNullOrWhiteSpace(message)) return;
+            if (envelope.EventType == "backend_exception")
+            {
+                envelope.Context ??= new Dictionary<string, object?>();
+                envelope.Context["log_message"] = message;
+                return;
+            }
             envelope.Payload["message"] = message;
             if (envelope.Payload.TryGetValue("attributes", out var fields) && fields is Dictionary<string, object?> attributes)
                 attributes["message"] = message;

@@ -14,6 +14,7 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDebugBundle
     private readonly DebugBundleRedactor _redactor;
     private readonly ProbeBuffer _probes;
     private readonly SuppressionTracker _suppression = new();
+    private readonly ExceptionCaptureIdentity _exceptionIdentity = new();
     private readonly Dictionary<string, object?> _persistentContext = new(StringComparer.Ordinal);
     private readonly List<DebugBundleEventEnvelope> _buffer;
     private Timer? _flushTimer;
@@ -62,7 +63,9 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDebugBundle
 
     public void CaptureException(Exception? exception, IDictionary<string, object?>? context = null) => CaptureExceptionCore(exception, context, false);
     internal void CaptureFatal(Exception? exception, IDictionary<string, object?>? context = null) => CaptureExceptionCore(exception, context, true);
-    private void CaptureExceptionCore(Exception? exception, IDictionary<string, object?>? context, bool fatal)
+    internal void CaptureLoggedException(Exception exception, IDictionary<string, object?> context, Action<DebugBundleEventEnvelope>? projection) =>
+        CaptureExceptionCore(exception, context, false, projection);
+    private void CaptureExceptionCore(Exception? exception, IDictionary<string, object?>? context, bool fatal, Action<DebugBundleEventEnvelope>? projection = null)
     {
         if (exception == null)
         {
@@ -72,6 +75,14 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDebugBundle
 
         try
         {
+            var exceptionContext = context == null
+                ? new Dictionary<string, object?>()
+                : SafeContext(context);
+            var operation = OperationContext.Current;
+            // Deferred hooks and sampling can reject the first queued report.
+            var identityScope = _options.BeforeSend == null && _options.SampleRate >= 1 && operation?.Active(_operations) == true ? operation.Id : null;
+            var automatic = fatal || exceptionContext.ContainsKey("logger");
+            if (!_exceptionIdentity.Admit(exception, identityScope, automatic)) return;
             var summary = ExceptionProjection.Snapshot(exception);
             var message = summary["message"];
             var payload = new Dictionary<string, object?>
@@ -94,9 +105,6 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDebugBundle
                 ["runtime"] = BuildRuntimeFacts()
             };
 
-            var exceptionContext = context == null
-                ? new Dictionary<string, object?>()
-                : SafeContext(context);
             exceptionContext["exception_hresult"] = exception.HResult;
             if (summary.TryGetValue("inner_exception", out var inner)) exceptionContext["inner_exception"] = inner;
 
@@ -113,7 +121,8 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDebugBundle
                 }
             }
 
-            Capture("backend_exception", payload, exceptionContext, exception, fatal: fatal);
+            if (Capture("backend_exception", payload, exceptionContext, exception, projection, fatal))
+                _exceptionIdentity.Admit(exception, identityScope, automatic, accepted: true);
         }
         catch { /* Malformed host exceptions cannot escape the public capture boundary. */ }
     }
@@ -328,28 +337,28 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDebugBundle
         }
     }
 
-    private void Capture(string eventType, Dictionary<string, object?> payload, IDictionary<string, object?>? context = null, Exception? exception = null, Action<DebugBundleEventEnvelope>? projection = null, bool fatal = false)
+    private bool Capture(string eventType, Dictionary<string, object?> payload, IDictionary<string, object?>? context = null, Exception? exception = null, Action<DebugBundleEventEnvelope>? projection = null, bool fatal = false)
     {
         try
         {
             if (!_options.Enabled || _transport == null)
             {
-                return;
+                return false;
             }
             if (!MightAdmit(eventType == "backend_exception" ? 3 : eventType == "log_event" ?
                 EventPriorityFromPayload(payload) : eventType == "request_event" ?
-                RequestPriorityFromPayload(payload) : 1, eventType)) return;
+                RequestPriorityFromPayload(payload) : 1, eventType)) return false;
 
             var redacted = ToDictionary(_redactor.Redact(payload));
             var envelope = ProtectCandidate(BuildEnvelope(eventType, redacted, context));
-            if (envelope == null || !ShouldCapturePreparedEvent(envelope)) return;
+            if (envelope == null || !ShouldCapturePreparedEvent(envelope)) return false;
             var eventBytes = EventBytes(envelope);
 
             lock (_sync)
             {
                 if (_disposed)
                 {
-                    return;
+                    return false;
                 }
 
                 envelope.Fatal = fatal;
@@ -358,10 +367,10 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDebugBundle
                 if (exception != null) envelope.PendingException = new WeakReference<Exception>(exception);
                 if (envelope.EventType == "diagnostic_context")
                 {
-                    if (!_diagnostics.Reserve(envelope.EventId, envelope.Payload, eventBytes, DateTimeOffset.UtcNow)) return;
+                    if (!_diagnostics.Reserve(envelope.EventId, envelope.Payload, eventBytes, DateTimeOffset.UtcNow)) return false;
                     envelope.DiagnosticId = envelope.EventId;
                 }
-                if (!AdmitLocked(envelope, eventBytes)) { ReleaseDiagnosticLocked(envelope); return; }
+                if (!AdmitLocked(envelope, eventBytes)) { ReleaseDiagnosticLocked(envelope); return false; }
                 if (_buffer.Count >= Math.Min(_options.BatchSize, MaxQueuedEvents))
                 {
                     RequestFlushLocked();
@@ -371,10 +380,12 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDebugBundle
                     ScheduleFlushLocked();
                 }
             }
+            return true;
         }
         catch
         {
             Status = DebugBundleStatus.Degraded;
+            return false;
         }
     }
 

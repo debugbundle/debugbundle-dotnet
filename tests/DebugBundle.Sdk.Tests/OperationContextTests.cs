@@ -4,6 +4,63 @@ namespace DebugBundle.Sdk.Tests;
 
 public sealed class OperationContextTests
 {
+    private sealed class HostContext : Dictionary<string, object?>, IDictionary<string, object?>
+    {
+        internal int Reads;
+        bool IDictionary<string, object?>.ContainsKey(string key) { Reads++; throw new InvalidOperationException("host accessor"); }
+    }
+
+    [Fact]
+    public async Task IdentityClassificationDoesNotInvokeApplicationDictionaryMethods()
+    {
+        var transport = new FakeTransport();
+        using var client = DebugBundleClient.Create(new DebugBundleOptions { ProjectMode = DebugBundleProjectMode.LocalOnly, Transport = transport, BatchSize = 1000 });
+        var context = new HostContext();
+        client.CaptureException(new InvalidOperationException("native failure"), context);
+        await client.FlushAsync();
+        Assert.Equal(0, context.Reads);
+        Assert.Single(transport.Batches.SelectMany(batch => batch));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReusedNativeObjectAndRejectedHookDoNotHideLaterFailures(bool dropFirst)
+    {
+        var transport = new FakeTransport();
+        var calls = 0;
+        using var client = DebugBundleClient.Create(new DebugBundleOptions
+        {
+            ProjectMode = DebugBundleProjectMode.LocalOnly,
+            Transport = transport,
+            BatchSize = 1000,
+            BeforeSend = dropFirst ? envelope => calls++ == 0 ? null : envelope : null
+        });
+        using var operation = client.BeginOperation(new DebugBundleOperationOptions { Kind = "request" });
+        var error = new InvalidOperationException("reused object");
+        client.CaptureException(error, new Dictionary<string, object?> { ["logger"] = "synthetic" });
+        await client.FlushAsync();
+        client.CaptureException(error, dropFirst ? null : new Dictionary<string, object?> { ["logger"] = "synthetic" });
+        await client.FlushAsync();
+        Assert.Equal(dropFirst ? 1 : 2, transport.Batches.SelectMany(batch => batch).Count());
+    }
+
+    [Fact]
+    public async Task LoggerAndMiddlewareShareOneNativeOccurrenceWithinEachOperation()
+    {
+        var transport = new FakeTransport();
+        using var client = DebugBundleClient.Create(new DebugBundleOptions { ProjectMode = DebugBundleProjectMode.LocalOnly, Transport = transport, BatchSize = 1000 });
+        var error = new InvalidOperationException("same native object");
+        for (var index = 0; index < 2; index++)
+        {
+            using var operation = client.BeginOperation(new DebugBundleOperationOptions { Kind = "request" });
+            client.CaptureException(error, new Dictionary<string, object?> { ["logger"] = "synthetic" });
+            client.CaptureException(error);
+        }
+        await client.FlushAsync();
+        Assert.Equal(2, transport.Batches.SelectMany(batch => batch).Count());
+    }
+
     [Fact]
     public async Task AsyncOperationPreservesResultsAndRevokesCopiedContextAfterCompletion()
     {

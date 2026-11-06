@@ -11,7 +11,7 @@ namespace DebugBundle.LoggingAdapters.Tests;
 public sealed class LoggingAdapterTests
 {
     [Fact]
-    public void Serilog_Sink_Captures_Log_And_Exception()
+    public void Serilog_Sink_Captures_One_Exception_With_Log_Context()
     {
         var client = new FakeClient();
         var sink = new DebugBundleSink(client);
@@ -25,11 +25,11 @@ public sealed class LoggingAdapterTests
 
         sink.Emit(logEvent);
 
-        Assert.Single(client.Exceptions);
-        var log = Assert.Single(client.Logs);
-        Assert.Equal(DebugBundleLogLevel.Error, log.Level);
-        Assert.Equal("Payment failed for \"ord-123\"", log.Message);
-        Assert.Equal("serilog", log.Context!["logger"]);
+        var captured = Assert.Single(client.Exceptions);
+        Assert.Empty(client.Logs);
+        Assert.Same(exception, captured.Exception);
+        Assert.Equal("Payment failed for \"ord-123\"", captured.Context!["log_message"]);
+        Assert.Equal("serilog", captured.Context!["logger"]);
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public sealed class LoggingAdapterTests
         nlog.WriteForTest(null!);
         new TestNLogTarget(new FakeClient { ThrowOnCapture = true })
             .WriteForTest(new LogEventInfo(LogLevel.Error, "levels", "failed"));
-        Assert.Equal(6, nlogClient.Logs.Count);
+        Assert.Equal(5, nlogClient.Logs.Count);
         Assert.Single(nlogClient.Exceptions);
 
         var log4NetClient = new FakeClient();
@@ -136,7 +136,7 @@ public sealed class LoggingAdapterTests
             Level.Error,
             "failed",
             null));
-        Assert.Equal(6, log4NetClient.Logs.Count);
+        Assert.Equal(5, log4NetClient.Logs.Count);
         Assert.Single(log4NetClient.Exceptions);
     }
 

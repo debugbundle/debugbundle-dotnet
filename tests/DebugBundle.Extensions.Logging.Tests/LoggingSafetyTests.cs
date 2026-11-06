@@ -48,12 +48,11 @@ public sealed class LoggingSafetyTests
         await transport.Completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
         GC.KeepAlive(state); GC.KeepAlive(formatter); GC.KeepAlive(exception);
         var envelope = Assert.Single(transport.Events);
-        Assert.Equal("formatted token=[REDACTED]", envelope.Payload["message"]);
+        Assert.Equal("formatted token=[REDACTED]", holdException ? envelope.Context!["log_message"] : envelope.Payload["message"]);
         if (holdException)
         {
-            var attributes = Assert.IsType<Dictionary<string, object?>>(envelope.Payload["attributes"]);
-            var detail = Assert.IsType<Dictionary<string, object?>>(attributes["exception"]);
-            Assert.Equal("exception token=[REDACTED]", detail["message"]);
+            Assert.Equal("backend_exception", envelope.EventType);
+            Assert.Equal("exception token=[REDACTED]", envelope.Payload["message"]);
         }
     }
 
