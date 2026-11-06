@@ -1,5 +1,7 @@
 # Changelog
 
+## [Unreleased]
+
 ## [2.1.1] - 2026-11-06
 
 - Read duplicate-capture metadata from the protected SDK snapshot instead of calling application-defined dictionary accessors.
