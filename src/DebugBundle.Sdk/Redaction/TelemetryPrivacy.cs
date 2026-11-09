@@ -263,7 +263,7 @@ public static class TelemetryPrivacy
         output = Regex.Replace(output, pem, Redacted, IgnoreCase, MatchTimeout);
         output = Regex.Replace(output, "\\b(Authorization|Proxy-Authorization|Cookie|Set-Cookie)\\s*:\\s*[^\\r\\n]*", "$1: [REDACTED]", IgnoreCase, MatchTimeout);
         output = Regex.Replace(output, "\\b(Bearer|Basic)\\s+[A-Za-z0-9._~+/-]{6,}", "$1 [REDACTED]", IgnoreCase, MatchTimeout);
-        output = Regex.Replace(output, "\\bdbundle_(?:proj|mem|probe|agent)_[A-Za-z0-9_-]+\\b", Redacted, RegexOptions.None, MatchTimeout);
+        output = Regex.Replace(output, "\\bdbundle_(?:proj|mem|probe|agent|invite|org_invite|org_transfer)_[A-Za-z0-9_-]+\\b", Redacted, RegexOptions.None, MatchTimeout);
         foreach (var pattern in FieldPatterns)
         {
             output = pattern.Replace(output, "$1$2[REDACTED]");

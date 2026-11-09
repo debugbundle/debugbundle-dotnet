@@ -1,6 +1,6 @@
 # DebugBundle .NET SDK
 
-Patch 2.1.1 corrects native logger exception evidence and capture safety while preserving public APIs and event schemas. Upgrade the DebugBundle distribution to adopt the correction.
+Patch 2.1.2 protects invitation and organisation-transfer credentials in captured text while preserving public APIs and event schemas. Upgrade the DebugBundle distribution to adopt the protection.
 
 DebugBundle for .NET captures backend exceptions, request metadata, structured logs, probe data, and browser relay traffic for ASP.NET Core and worker-style applications.
 
@@ -302,3 +302,12 @@ seeding are excluded. One warm-up and three reported repetitions run with local-
 configuration, an in-memory transport and Docker networking disabled. The harness
 checks native causes, original failure retention and existing byte/count ceilings.
 Use `DOTNET_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0 SMOKE_TFM=net10.0` for .NET 10.
+
+
+### Unreleased acceptance-credential privacy
+
+The source candidate also scrubs standalone `dbundle_invite_`,
+`dbundle_org_invite_` and `dbundle_org_transfer_` acceptance secrets before
+SDK-owned retention or transmission. See the [shared qualification record](https://github.com/debugbundle/debugbundle/blob/main/spec/business-credential-redaction.md).
+Published packages keep their released behaviour until the coordinated dependency
+and distribution checks are completed and a new version is published.
