@@ -6,6 +6,25 @@ namespace DebugBundle;
 
 internal static class EvidenceWire
 {
+    // Bounded, SDK-owned JSON only. Receiving validation remains strict; the
+    // local hook may shed optional bytes before invalid-shape fallback.
+    internal static bool OptionalEvidenceFits(Dictionary<string, object?> owned)
+    {
+        if (!owned.TryGetValue("event_type", out var kind) || kind is not ("backend_exception" or "frontend_exception") ||
+            !owned.TryGetValue("payload", out var payloadValue) || payloadValue is not Dictionary<string, object?> payload) return true;
+        var additions = new Dictionary<string, object?>();
+        foreach (var field in new[] { "exception_evidence", "execution", "resource_observations" })
+            if (payload.TryGetValue(field, out var value)) additions[field] = value;
+        if (additions.Count == 0) return true;
+        if (owned.TryGetValue("context", out var contextValue) && contextValue is Dictionary<string, object?> context &&
+            context.TryGetValue("evidence_reference", out var reference))
+        {
+            using var document = JsonDocument.Parse(JsonSerializer.Serialize(reference, OwnedJson.Options));
+            if (Reference(document.RootElement)) additions["evidence_reference"] = reference;
+        }
+        return AcceptingJsonSize.Size(additions) <= 32768;
+    }
+
     private static readonly Regex Fresh = new("\\A[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[89abAB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}\\z", RegexOptions.CultureInvariant);
     internal static bool FreshId(string? value) => value != null && value.Length == 36 && Fresh.IsMatch(value);
     internal static bool Accepts(JsonElement value)
@@ -20,11 +39,11 @@ internal static class EvidenceWire
         catch (EvidenceValidationUnavailableException) { throw; }
         catch { return false; }
     }
-    internal static bool Accepts(Dictionary<string, object?> owned)
+    internal static bool Accepts(Dictionary<string, object?> owned, bool checkByteBudget = true)
     {
         if (!CanonicalEventSchema.Accepts(owned)) return false;
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(owned, OwnedJson.Options));
-        return Semantic(document.RootElement);
+        return Semantic(document.RootElement, checkByteBudget);
     }
     private static bool Id(JsonElement value) => value.ValueKind == JsonValueKind.String && Fresh.IsMatch(value.GetString()!);
     internal static bool Scope(JsonElement value)
@@ -38,7 +57,7 @@ internal static class EvidenceWire
         value.TryGetProperty("failure_ref", out var failure) && Id(failure) && value.TryGetProperty("scope", out var scope) && Scope(scope);
     private static bool Text(JsonElement value, int maximum) => value.ValueKind == JsonValueKind.Null ||
         value.ValueKind == JsonValueKind.String && Encoding.UTF8.GetByteCount(value.GetString()!) <= maximum;
-    private static bool Semantic(JsonElement value)
+    private static bool Semantic(JsonElement value, bool checkByteBudget = true)
     {
         var payload = value.GetProperty("payload"); var type = value.GetProperty("event_type").GetString();
         if (type == "frontend_exception")
@@ -67,14 +86,14 @@ internal static class EvidenceWire
         {
             if (!payload.TryGetProperty(field, out var item)) continue;
             if (!(type == "backend_exception" && field != "resource_observations" || type == "frontend_exception" && field != "execution")) return false;
-            if (field == "exception_evidence" && !Graph(item) || field == "execution" && !Text(item.GetProperty("name"), 128) || field == "resource_observations" && !Resources(item)) return false;
+            if (field == "exception_evidence" && !Graph(item, checkByteBudget) || field == "execution" && !Text(item.GetProperty("name"), 128) || field == "resource_observations" && !Resources(item)) return false;
             additions[field] = item;
         }
         if (additions.Count == 0) return true;
         if (value.TryGetProperty("context", out var context) && context.TryGetProperty("evidence_reference", out var reference) && Reference(reference)) additions["evidence_reference"] = reference;
-        return AcceptingJsonSize.Size(additions) <= 32768;
+        return !checkByteBudget || AcceptingJsonSize.Size(additions) <= 32768;
     }
-    private static bool Graph(JsonElement graph)
+    private static bool Graph(JsonElement graph, bool checkByteBudget)
     {
         var nodes = graph.GetProperty("nodes").EnumerateArray().ToArray();
         var adjacency = new Dictionary<int, List<int>>();
@@ -105,7 +124,7 @@ internal static class EvidenceWire
             foreach (var child in children) if (!Visit(child, depth + 1)) return false;
             active.Remove(id); return true;
         }
-        return Visit((int)graph.GetProperty("root_id").GetDouble(), 0) && reached.Count == nodes.Length && AcceptingJsonSize.Size(graph) <= 32768;
+        return Visit((int)graph.GetProperty("root_id").GetDouble(), 0) && reached.Count == nodes.Length && (!checkByteBudget || AcceptingJsonSize.Size(graph) <= 32768);
     }
     private static bool Resources(JsonElement value)
     {

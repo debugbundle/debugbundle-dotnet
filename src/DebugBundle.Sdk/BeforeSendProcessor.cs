@@ -16,6 +16,12 @@ internal static class BeforeSendProcessor
         try
         {
             var owned = OwnedJson.Snapshot(result);
+            if (!EvidenceWire.OptionalEvidenceFits(owned) && EvidenceWire.Accepts(owned, checkByteBudget: false))
+            {
+                var reduced = DebugBundleClient.WithoutOptionalEvidence(OwnedJson.Event(owned), true);
+                if (reduced == null) return null;
+                owned = OwnedJson.Snapshot(reduced);
+            }
             return EvidenceWire.Accepts(owned) ? OwnedJson.Event(owned) : envelope;
         }
         catch (EvidenceValidationUnavailableException) { return null; }

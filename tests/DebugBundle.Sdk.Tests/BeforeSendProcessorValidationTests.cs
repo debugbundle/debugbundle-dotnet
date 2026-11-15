@@ -4,6 +4,44 @@ namespace DebugBundle.Sdk.Tests;
 
 public sealed class BeforeSendProcessorValidationTests
 {
+    [Fact]
+    public void Shared_Byte_Boundaries_Preserve_Owner_Policy_And_Invalid_Fallback()
+    {
+        using var corpus = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures/before-send-budget.json")));
+        var original = System.Text.Json.JsonSerializer.Deserialize<DebugBundleEventEnvelope>(corpus.RootElement.GetProperty("original").GetRawText())!;
+        foreach (var fixture in corpus.RootElement.GetProperty("cases").EnumerateArray())
+        {
+            var replacement = System.Text.Json.JsonSerializer.Deserialize<DebugBundleEventEnvelope>(fixture.GetProperty("event").GetRawText())!;
+            var outcome = fixture.GetProperty("outcome").GetString();
+            var result = BeforeSendProcessor.Apply(original, _ => replacement);
+            Assert.NotNull(result);
+            Assert.Equal(outcome == "fallback" ? "owner removed" : "owner replacement", result.Payload["message"]?.ToString());
+            Assert.True(BeforeSendProcessor.IsValid(result));
+            if (outcome == "fallback") continue;
+            Assert.Equal(outcome == "keep", result.Payload.ContainsKey("exception_evidence"));
+            Assert.Equal("preserved", result.Context!["owner_field"]?.ToString());
+            var id = fixture.GetProperty("id").GetString()!;
+            if (id.EndsWith("-legacy")) Assert.True(result.Context.ContainsKey("evidence_reference"));
+            if (id.EndsWith("-typed") && outcome == "reduce") Assert.False(result.Context.ContainsKey("evidence_reference"));
+        }
+    }
+
+    [Fact]
+    public void Apply_Reduces_Combined_Evidence_Without_Restoring_Removed_Content()
+    {
+        using var corpus = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures/evidence-wire-cases.json")));
+        var fixture = corpus.RootElement.GetProperty("events").EnumerateArray().Single(item => item.GetProperty("id").GetString() == "combined_optional_bytes");
+        var candidate = System.Text.Json.JsonSerializer.Deserialize<DebugBundleEventEnvelope>(fixture.GetProperty("event").GetRawText())!;
+        candidate.Payload["message"] = "owner replacement";
+        var original = Envelope("log_event", new() { ["level"] = "error", ["message"] = "owner removed", ["attributes"] = new Dictionary<string, object?>() });
+        var result = BeforeSendProcessor.Apply(original, _ => candidate);
+        Assert.NotNull(result);
+        Assert.Equal("owner replacement", result.Payload["message"]);
+        Assert.True(BeforeSendProcessor.IsValid(result));
+        Assert.False(result.Payload.ContainsKey("exception_evidence"));
+        Assert.True(candidate.Payload.ContainsKey("exception_evidence"));
+    }
+
     public static IEnumerable<object[]> ValidPayloads()
     {
         yield return Case("backend_exception", new()

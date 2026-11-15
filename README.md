@@ -1,6 +1,6 @@
 # DebugBundle .NET SDK
 
-Patch 2.1.3 protects invitation and organisation-transfer credentials in captured text while preserving public APIs and event schemas. Upgrade the DebugBundle distribution to adopt the protection.
+Patch 2.1.4 preserves application hook redaction under optional-evidence limits and complete validation. Public capture APIs and event schemas remain compatible.
 
 DebugBundle for .NET captures backend exceptions, request metadata, structured logs, probe data, and browser relay traffic for ASP.NET Core and worker-style applications.
 
@@ -355,3 +355,13 @@ The SDK scrubs standalone `dbundle_invite_`,
 `dbundle_org_invite_` and `dbundle_org_transfer_` acceptance secrets before
 SDK-owned retention or transmission. See the [shared qualification record](https://github.com/debugbundle/debugbundle/blob/main/spec/business-credential-redaction.md).
 Existing installations receive this protection when upgraded to a version that includes it.
+
+### Hook size limits (unreleased correction)
+
+A hook replacement whose optional exception evidence exceeds the combined 32 KiB
+UTF-8 JSON budget keeps its replacement message and other primary fields. The SDK
+omits the oversized optional evidence and its typed reference, recording
+`context.evidence_limits`. Ordinary custom context remains intact. A size limit
+must not restore text removed by the hook; an otherwise valid replacement that
+cannot fit later ownership or transport limits is withheld. Malformed returns and
+throwing hooks retain the established protected-original fallback.
