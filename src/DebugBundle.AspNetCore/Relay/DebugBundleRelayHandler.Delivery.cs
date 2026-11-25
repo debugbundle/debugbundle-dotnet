@@ -27,13 +27,13 @@ public static partial class DebugBundleRelayHandler
             if (EvidenceWire.Reference(document.RootElement)) copy.Context.Remove("evidence_reference");
         }
         copy.ProjectToken = native ? ProjectToken(options) : null;
-        copy = TelemetryPrivacy.ProtectEvent(copy, options.RedactFields);
+        copy = TelemetryPrivacy.ProtectEvent(copy, options.RedactFields, options.RedactExactFields);
         if (copy == null || HasTypedEvidence(copy) && !BeforeSendProcessor.IsValid(copy)) return null;
         if (!native || NativeBytes(copy) <= BoundedHttpResponse.MaxBytes - 13) return copy;
         foreach (var mark in new[] { true, false })
         {
             var reduced = DebugBundleClient.WithoutOptionalEvidence(copy, mark);
-            var safe = reduced == null ? null : TelemetryPrivacy.ProtectEvent(reduced, options.RedactFields);
+            var safe = reduced == null ? null : TelemetryPrivacy.ProtectEvent(reduced, options.RedactFields, options.RedactExactFields);
             if (safe != null && BeforeSendProcessor.IsValid(safe) && NativeBytes(safe) <= BoundedHttpResponse.MaxBytes - 13) return safe;
         }
         return null;

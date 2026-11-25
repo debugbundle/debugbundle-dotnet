@@ -132,7 +132,7 @@ internal static class EvidenceWire
             if (observation.GetProperty("source_url") is var source && source.ValueKind != JsonValueKind.Null && !ResourceUrl(source.GetString()!)) return false;
         return AcceptingJsonSize.Size(value) <= 32768;
     }
-    private static bool ResourceUrl(string value)
+    internal static bool ResourceUrl(string value)
     {
         if (value.Length == 0 || Encoding.UTF8.GetByteCount(value) > 2048 || value.StartsWith("//", StringComparison.Ordinal) || value.Any(letter => letter <= 32 || letter == 127 || letter is '\\' or '?' or '#')) return false;
         if (value.StartsWith("/", StringComparison.Ordinal)) return true;

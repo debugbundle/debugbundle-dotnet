@@ -19,7 +19,7 @@ public sealed partial class DebugBundleClient
             var kind = options.Kind is "request" or "command" or "job" ? options.Kind : "unknown";
             string? name = null;
             if (!string.IsNullOrEmpty(options.Name) && options.Name!.Length <= 4096)
-                name = ExceptionEvidence.Clip((string)TelemetryPrivacy.Protect(options.Name, _options.RedactFields)!, 128);
+                name = ExceptionEvidence.Clip((string)TelemetryPrivacy.Protect(options.Name, _options.RedactFields, _options.RedactExactFields)!, 128);
             var limit = options.Limit is { } configured && configured >= TimeSpan.Zero ? configured.TotalMilliseconds : (double?)null;
             return new DebugBundleOperationScope(new OperationLease(_operations, parent, kind, name, limit));
         }

@@ -111,13 +111,18 @@ public sealed class CanonicalHookTests
     {
         using var corpus = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures/evidence-wire-cases.json")));
         var payload = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object?>>(corpus.RootElement.GetProperty("events")[0].GetProperty("event").GetProperty("payload").GetRawText())!;
+        var graph = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object?>>(System.Text.Json.JsonSerializer.Serialize(payload["exception_evidence"]))!;
+        var nodes = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object?>>>(System.Text.Json.JsonSerializer.Serialize(graph["nodes"]))!;
+        // Valid 2,047-byte message expands to 2,056 bytes after mandatory password redaction, exceeding the 2,048-byte schema limit.
+        nodes[0]["message"] = new string('a', 2036) + " password=1";
+        graph["nodes"] = nodes;
+        payload["exception_evidence"] = graph;
         var transport = new FakeTransport();
         using var client = DebugBundleClient.Create(new DebugBundleOptions
         {
             ProjectToken = "synthetic",
             ProjectMode = DebugBundleProjectMode.LocalOnly,
             Transport = transport,
-            RedactFields = new[] { "classification" },
             BeforeSend = candidate => { candidate.EventType = "frontend_exception"; candidate.Payload = payload; candidate.Payload["message"] = "latest accepted redaction"; return candidate; }
         });
         client.CaptureMessage("private original", DebugBundleLogLevel.Error);

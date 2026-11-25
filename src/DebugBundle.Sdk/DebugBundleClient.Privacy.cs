@@ -9,13 +9,13 @@ public sealed partial class DebugBundleClient
     // the latest accepted primary is never replaced with its pre-hook contents.
     private DebugBundleEventEnvelope? ProtectCandidate(DebugBundleEventEnvelope envelope)
     {
-        var safe = TelemetryPrivacy.ProtectEvent(envelope, _options.RedactFields);
+        var safe = TelemetryPrivacy.ProtectEvent(envelope, _options.RedactFields, _options.RedactExactFields);
         if (safe != null && BeforeSendProcessor.IsValid(safe)) return FilterEvidence(safe);
         foreach (var mark in new[] { true, false })
         {
             var reduced = WithoutOptionalEvidence(envelope, mark);
             if (reduced == null) continue;
-            safe = TelemetryPrivacy.ProtectEvent(reduced, _options.RedactFields);
+            safe = TelemetryPrivacy.ProtectEvent(reduced, _options.RedactFields, _options.RedactExactFields);
             if (safe != null && BeforeSendProcessor.IsValid(safe)) return FilterEvidence(safe);
         }
         return null;

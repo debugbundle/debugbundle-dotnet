@@ -170,7 +170,7 @@ public static partial class DebugBundleRelayHandler
 
         if (candidate.TryGetProperty("context", out var context) && context.ValueKind == JsonValueKind.Object)
             envelope.Context = JsonSerializer.Deserialize<Dictionary<string, object?>>(context.GetRawText(), JsonSerialization.Options);
-        var safe = TelemetryPrivacy.ProtectEvent(envelope, sdkOptions.RedactFields)
+        var safe = TelemetryPrivacy.ProtectEvent(envelope, sdkOptions.RedactFields, sdkOptions.RedactExactFields)
             ?? throw new InvalidRelayEventException("Invalid browser relay event payload.");
         if (HasTypedEvidence(safe) && !BeforeSendProcessor.IsValid(safe)) throw new InvalidRelayEventException("Invalid browser evidence payload.");
         return safe;

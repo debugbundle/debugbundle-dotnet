@@ -7,10 +7,13 @@ using System.Text.RegularExpressions;
 namespace DebugBundle.Redaction;
 
 /// <summary>Mandatory bounded protection for application-owned telemetry fields.</summary>
-public static class TelemetryPrivacy
+public static partial class TelemetryPrivacy
 {
     private const string Redacted = "[REDACTED]";
     private const int MaxBytes = 256 * 1024;
+    private const int MaxCustomKeys = 128;
+    private const int MaxCustomKeyLength = 64;
+    private static readonly HashSet<string> EmptyExactKeys = new(StringComparer.Ordinal);
     private static readonly string[] Fields =
     {
         "password", "secret", "token", "api_key", "apikey", "access_token", "refresh_token",
@@ -24,71 +27,24 @@ public static class TelemetryPrivacy
     // its immutable patterns once; caller-specific rules remain operation-owned.
     private static readonly Regex[] FieldPatterns = Fields.Select(FieldPattern).ToArray();
     private static Regex FieldPattern(string field) => new("\\b(" + Regex.Escape(field) + ")\\b([\"']?\\s*[:=]\\s*)(?:\"[^\"]*\"|'[^']*'|[^\\s&,;]+)", IgnoreCase, MatchTimeout);
-
-    public static DebugBundleEventEnvelope? ProtectEvent(DebugBundleEventEnvelope eventEnvelope, IEnumerable<string>? additionalFields = null)
-    {
-        try
-        {
-            if (eventEnvelope.Correlation?.Count > 8) return null;
-            var identities = new object?[] { eventEnvelope.SchemaVersion, eventEnvelope.SdkName, eventEnvelope.SdkVersion }
-                .Concat(eventEnvelope.Correlation?.Values ?? Enumerable.Empty<object?>());
-            foreach (var value in identities)
-            {
-                if (value is not null && (value is not string scalar || !Equals(Protect(scalar, additionalFields), scalar)))
-                    return null;
-            }
-            var fields = new Dictionary<string, object?>
-            {
-                ["service"] = new Dictionary<string, object?>
-                {
-                    ["name"] = eventEnvelope.Service.Name,
-                    ["runtime"] = eventEnvelope.Service.Runtime,
-                    ["framework"] = eventEnvelope.Service.Framework,
-                    ["environment"] = eventEnvelope.Service.Environment
-                },
-                ["payload"] = eventEnvelope.Payload,
-                ["context"] = eventEnvelope.Context
-            };
-            var safe = (Dictionary<string, object?>)Protect(fields, additionalFields)!;
-            var service = (Dictionary<string, object?>)safe["service"]!;
-            var payload = (Dictionary<string, object?>)safe["payload"]!;
-            var context = safe["context"] as Dictionary<string, object?>;
-            if (service["name"] is not string name || service["environment"] is not string environment)
-                return null;
-
-            return new DebugBundleEventEnvelope
-            {
-                SchemaVersion = eventEnvelope.SchemaVersion,
-                EventId = eventEnvelope.EventId,
-                EventType = eventEnvelope.EventType,
-                ProjectToken = eventEnvelope.ProjectToken,
-                SdkName = eventEnvelope.SdkName,
-                SdkVersion = eventEnvelope.SdkVersion,
-                OccurredAt = eventEnvelope.OccurredAt,
-                Correlation = eventEnvelope.Correlation,
-                Service = new DebugBundleServiceDescriptor
-                {
-                    Name = name,
-                    Runtime = (string)service["runtime"]!,
-                    Framework = service["framework"] as string,
-                    Environment = environment
-                },
-                Payload = payload,
-                Context = context
-            };
-        }
-        catch { return null; }
-    }
+    // Identifier boundaries redact `tag=secret` while preserving `tag_name=script` and `x-tag-name=script`.
+    private static Regex ExactFieldPattern(string field) => new("(?<![A-Za-z0-9_-])(" + Regex.Escape(field.Trim()) + ")(?![A-Za-z0-9_-])([\"']?\\s*[:=]\\s*)(?:\"[^\"]*\"|'[^']*'|[^\\s&,;]+)", IgnoreCase, MatchTimeout);
 
     public static object? Protect(object? value, IEnumerable<string>? additionalFields = null)
+        => Protect(value, additionalFields, exactFields: null);
+
+    public static object? Protect(object? value, IEnumerable<string>? additionalFields, IEnumerable<string>? exactFields)
     {
-        var extra = additionalFields?.Take(129).ToArray() ?? Array.Empty<string>();
-        if (extra.Length > 128 || extra.Any(field => string.IsNullOrWhiteSpace(field) || field.Length > 64))
+        var extra = additionalFields?.Take(MaxCustomKeys + 1).ToArray() ?? Array.Empty<string>();
+        var exact = exactFields?.Take(MaxCustomKeys + 1).ToArray() ?? Array.Empty<string>();
+        if (extra.Length + exact.Length > MaxCustomKeys ||
+            extra.Any(field => string.IsNullOrWhiteSpace(field) || field.Length > MaxCustomKeyLength) ||
+            exact.Any(field => string.IsNullOrWhiteSpace(field) || field.Length > MaxCustomKeyLength))
         {
             throw new ArgumentException("unsafe_input");
         }
 
-        var work = new Work(extra);
+        var work = new Work(extra, exact);
         var result = Visit(value, work, 0, true);
         if (Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(result)) > MaxBytes)
         {
@@ -104,13 +60,45 @@ public static class TelemetryPrivacy
         public readonly HashSet<object> Seen = new(ReferenceComparer.Instance);
         public readonly HashSet<string> Keys;
         public readonly Regex[] ExtraPatterns;
+        public readonly HashSet<string> ExactKeys;
+        public readonly Regex[] ExactPatterns;
 
-        public Work(string[] extra)
+        public Work(string[] extra, string[] exact)
         {
-            ExtraPatterns = extra.Select(FieldPattern).ToArray();
+            ExtraPatterns = extra.Length == 0 ? Array.Empty<Regex>() : extra.Select(FieldPattern).ToArray();
             Keys = new HashSet<string>(Fields.Concat(extra).Select(Canonical), StringComparer.Ordinal);
+            ExactKeys = exact.Length == 0
+                ? EmptyExactKeys
+                : new HashSet<string>(exact.Select(field => AsciiLower(field.Trim())), StringComparer.Ordinal);
+            ExactPatterns = exact.Length == 0 ? Array.Empty<Regex>() : exact.Select(ExactFieldPattern).ToArray();
         }
     }
+
+    internal static string AsciiLower(string value)
+    {
+        var changed = false;
+        for (var index = 0; index < value.Length; index++)
+        {
+            if (value[index] is >= 'A' and <= 'Z')
+            {
+                changed = true;
+                break;
+            }
+        }
+        if (!changed) return value;
+        var chars = value.ToCharArray();
+        for (var index = 0; index < chars.Length; index++)
+        {
+            if (chars[index] is >= 'A' and <= 'Z')
+            {
+                chars[index] = (char)(chars[index] + ('a' - 'A'));
+            }
+        }
+        return new string(chars);
+    }
+
+    private static bool ExactSensitiveKey(string key, Work work)
+        => work.ExactKeys.Count > 0 && work.ExactKeys.Contains(AsciiLower(key.Trim()));
 
     private sealed class ReferenceComparer : IEqualityComparer<object>
     {
@@ -174,7 +162,7 @@ public static class TelemetryPrivacy
                     if (key.Length > 128) continue;
                     Count(work, key);
                     if (ScrubText(key, work) != key) continue;
-                    output[key] = SensitiveKey(key, work) ? Redacted : Visit(entry.Value, work, depth + 1, structured);
+                    output[key] = SensitiveKey(key, work) || ExactSensitiveKey(key, work) ? Redacted : Visit(entry.Value, work, depth + 1, structured);
                 }
                 return output;
             }
@@ -272,6 +260,10 @@ public static class TelemetryPrivacy
         {
             output = pattern.Replace(output, "$1$2[REDACTED]");
         }
+        foreach (var pattern in work.ExactPatterns)
+        {
+            output = pattern.Replace(output, "$1$2[REDACTED]");
+        }
         output = Regex.Replace(output, "(?<![A-Za-z0-9_-])(?:[0-9][ -]?){12,18}[0-9](?![A-Za-z0-9_-])",
             match => ValidCard(match.Value) ? Redacted : match.Value, RegexOptions.None, MatchTimeout);
         if (!scanUrls) return output;
@@ -313,7 +305,7 @@ public static class TelemetryPrivacy
                 var key = Uri.UnescapeDataString(parts[0]);
                 var value = parts.Length == 2 ? Uri.UnescapeDataString(parts[1]) : string.Empty;
                 if (key.Length > 128 || ScrubText(key, work, false) != key) return null;
-                return Uri.EscapeDataString(key) + "=" + Uri.EscapeDataString(SensitiveKey(key, work) || ScrubText(value, work, false) != value ? Redacted : value);
+                return Uri.EscapeDataString(key) + "=" + Uri.EscapeDataString(SensitiveKey(key, work) || ExactSensitiveKey(key, work) || ScrubText(value, work, false) != value ? Redacted : value);
             }).Where(pair => pair is not null);
             output.Append('?').Append(string.Join("&", pairs));
         }

@@ -10,6 +10,7 @@ internal sealed class CanonicalEventSchema
 {
     private static readonly HashSet<string> Keywords = new(new[] { "$schema", "$id", "$comment", "$ref", "type", "properties", "required", "additionalProperties", "items", "anyOf", "enum", "const", "minItems", "maxItems", "minLength", "maxLength", "minimum", "maximum", "exclusiveMinimum", "pattern", "format" }, StringComparer.Ordinal);
     private static readonly Regex Uuid = new("\\A[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}\\z", RegexOptions.CultureInvariant);
+    internal static bool IsUuid(string? value) => value != null && Uuid.IsMatch(value);
     private static readonly Regex Timestamp = new("\\A[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?Z\\z", RegexOptions.CultureInvariant);
     private static readonly Lazy<CanonicalEventSchema?> Shared = new(Load);
     private readonly JsonElement _root;
@@ -143,7 +144,7 @@ internal sealed class CanonicalEventSchema
     private static bool Same(JsonElement left, JsonElement right) =>
         left.ValueKind == right.ValueKind && (left.ValueKind == JsonValueKind.Number ? left.GetDouble() == right.GetDouble() :
             left.ValueKind == JsonValueKind.String ? left.GetString() == right.GetString() : left.GetRawText() == right.GetRawText());
-    private static bool ValidTimestamp(string value)
+    internal static bool ValidTimestamp(string value)
     {
         if (!Timestamp.IsMatch(value)) return false;
         int Number(int start, int length) => int.Parse(value.Substring(start, length), CultureInfo.InvariantCulture);

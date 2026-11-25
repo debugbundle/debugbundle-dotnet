@@ -275,7 +275,9 @@ DebugBundle.DebugBundle.Init(new DebugBundleOptions
 {
     ProjectToken = Environment.GetEnvironmentVariable("DEBUGBUNDLE_PROJECT_TOKEN"),
     Service = "checkout-worker",
-    Environment = "production"
+    Environment = "production",
+    // Optional: exact case-insensitive (ASCII) field redaction without matching compound keys like `tag_name`.
+    RedactExactFields = new[] { "tag" }
 });
 
 DebugBundle.DebugBundle.CaptureException(exception, new Dictionary<string, object?>

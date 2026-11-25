@@ -26,6 +26,7 @@ public sealed class DebugBundleOptions
     public int MaxProbeEntriesPerLabel { get; set; } = 10;
     public bool ProbeFlushOnError { get; set; } = true;
     public IReadOnlyCollection<string> RedactFields { get; set; } = Array.Empty<string>();
+    public IReadOnlyCollection<string> RedactExactFields { get; set; } = Array.Empty<string>();
     public IEventTransport? Transport { get; set; }
     public IRemoteConfigFetcher? RemoteConfigFetcher { get; set; }
     public Func<double>? RandomSource { get; set; }
@@ -68,7 +69,8 @@ public sealed class DebugBundleOptions
             Math.Max(1, MaxProbeLabels),
             Math.Max(1, MaxProbeEntriesPerLabel),
             ProbeFlushOnError,
-            RedactFields,
+            RedactFields ?? Array.Empty<string>(),
+            RedactExactFields ?? Array.Empty<string>(),
             Transport,
             RemoteConfigFetcher,
             RandomSource ?? new Random().NextDouble,
@@ -120,6 +122,7 @@ internal sealed class ResolvedDebugBundleOptions
         int maxProbeEntriesPerLabel,
         bool probeFlushOnError,
         IReadOnlyCollection<string> redactFields,
+        IReadOnlyCollection<string> redactExactFields,
         IEventTransport? transport,
         IRemoteConfigFetcher? remoteConfigFetcher,
         Func<double> randomSource,
@@ -144,6 +147,7 @@ internal sealed class ResolvedDebugBundleOptions
         MaxProbeEntriesPerLabel = maxProbeEntriesPerLabel;
         ProbeFlushOnError = probeFlushOnError;
         RedactFields = redactFields;
+        RedactExactFields = redactExactFields;
         Transport = transport;
         RemoteConfigFetcher = remoteConfigFetcher;
         RandomSource = randomSource;
@@ -174,6 +178,7 @@ internal sealed class ResolvedDebugBundleOptions
     public int MaxProbeEntriesPerLabel { get; }
     public bool ProbeFlushOnError { get; }
     public IReadOnlyCollection<string> RedactFields { get; }
+    public IReadOnlyCollection<string> RedactExactFields { get; }
     public IEventTransport? Transport { get; }
     public IRemoteConfigFetcher? RemoteConfigFetcher { get; }
     public Func<double> RandomSource { get; }

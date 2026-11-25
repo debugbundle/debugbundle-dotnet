@@ -87,4 +87,126 @@ public sealed class RedactionTests
 
         Assert.Equal("[Circular]", result["self"]);
     }
+
+    [Fact]
+    public void Exact_Key_Redaction_Matches_Shared_Corpus_And_Enforces_Combined_Bounds()
+    {
+        var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../fixtures/privacy-conformance.json"));
+        using var fixture = JsonDocument.Parse(File.ReadAllText(path));
+        var exactCases = fixture.RootElement.GetProperty("exact_key_cases").EnumerateArray().ToList();
+        Assert.NotEmpty(exactCases);
+        foreach (var testCase in exactCases)
+        {
+            var additional = testCase.TryGetProperty("additional_keys", out var addProp) && addProp.ValueKind == JsonValueKind.Array
+                ? addProp.EnumerateArray().Select(e => e.GetString()!).ToArray()
+                : Array.Empty<string>();
+            var exact = testCase.TryGetProperty("exact_keys", out var exactProp) && exactProp.ValueKind == JsonValueKind.Array
+                ? exactProp.EnumerateArray().Select(e => e.GetString()!).ToArray()
+                : Array.Empty<string>();
+            var safe = TelemetryPrivacy.Protect(testCase.GetProperty("input"), additional, exact);
+            Assert.True(
+                JsonNode.DeepEquals(
+                    JsonSerializer.SerializeToNode(safe),
+                    JsonNode.Parse(testCase.GetProperty("expected").GetRawText())),
+                testCase.GetProperty("id").GetString());
+        }
+
+        var literal = Assert.IsType<Dictionary<string, object?>>(TelemetryPrivacy.Protect(
+            new Dictionary<string, object?>
+            {
+                ["a+b"] = "secret",
+                ["aaab"] = "keep",
+                ["k"] = "secret",
+                ["K"] = "secret",
+                ["\u212A"] = "keep"
+            },
+            Array.Empty<string>(),
+            new[] { "a+b", "k" }));
+        Assert.Equal("[REDACTED]", literal["a+b"]);
+        Assert.Equal("keep", literal["aaab"]);
+        Assert.Equal("[REDACTED]", literal["k"]);
+        Assert.Equal("[REDACTED]", literal["K"]);
+        Assert.Equal("keep", literal["\u212A"]);
+
+        var broad65 = Enumerable.Range(0, 65).Select(i => $"broad_{i}").ToArray();
+        var exact64 = Enumerable.Range(0, 64).Select(i => $"exact_{i}").ToArray();
+        Assert.Throws<ArgumentException>(() => TelemetryPrivacy.Protect("ok", broad65, exact64));
+        Assert.Throws<ArgumentException>(() => TelemetryPrivacy.Protect("ok", Array.Empty<string>(), new[] { "   " }));
+        Assert.Throws<ArgumentException>(() => TelemetryPrivacy.Protect("ok", Array.Empty<string>(), new[] { new string('x', 65) }));
+    }
+
+    [Fact]
+    public void ProtectEvent_Preserves_Validated_Protocol_Fields_Under_Broad_RedactFields()
+    {
+        var failureRef = Guid.NewGuid().ToString();
+        var pageId = Guid.NewGuid().ToString();
+        var envelope = new DebugBundleEventEnvelope
+        {
+            SchemaVersion = "2026-03-01",
+            EventId = Guid.NewGuid().ToString(),
+            EventType = "frontend_exception",
+            SdkName = "@debugbundle/sdk-browser",
+            SdkVersion = "3.0.0",
+            OccurredAt = "2026-10-26T10:00:00Z",
+            Service = new DebugBundleServiceDescriptor { Name = "web", Runtime = "browser", Environment = "production" },
+            Context = new Dictionary<string, object?>
+            {
+                ["evidence_reference"] = new Dictionary<string, object?>
+                {
+                    ["version"] = 1,
+                    ["failure_ref"] = failureRef,
+                    ["scope"] = new Dictionary<string, object?> { ["kind"] = "page", ["page_id"] = pageId }
+                },
+                ["evidence_limits"] = new Dictionary<string, object?> { ["version"] = 1, ["execution"] = "unsupported" },
+                ["payout"] = new Dictionary<string, object?>
+                {
+                    ["tag"] = "SYNTHETIC_TAG",
+                    ["reference"] = "SYNTHETIC_REF",
+                    ["reason"] = "SYNTHETIC_REASON",
+                    ["file"] = "SYNTHETIC_FILE"
+                }
+            },
+            Payload = new Dictionary<string, object?>
+            {
+                ["name"] = "Error",
+                ["message"] = "boom reason=SYNTHETIC_REASON",
+                ["browser"] = new Dictionary<string, object?> { ["name"] = "Chrome", ["version"] = "120" },
+                ["browser_event"] = new Dictionary<string, object?>
+                {
+                    ["kind"] = "resource_error",
+                    ["message"] = "failed reason=SYNTHETIC_REASON",
+                    ["file_name"] = "https://cdn.example.test/app.js?file=SYNTHETIC_FILE",
+                    ["line_number"] = 1,
+                    ["column_number"] = 2,
+                    ["target"] = new Dictionary<string, object?>
+                    {
+                        ["tag_name"] = "script",
+                        ["source_url"] = "https://cdn.example.test/app.js?tag=SYNTHETIC_TAG",
+                        ["attributes"] = new Dictionary<string, object?> { ["rel"] = "preload reason=SYNTHETIC_REASON", ["async"] = true }
+                    },
+                    ["opaque"] = true
+                },
+                ["rejection_reason"] = new Dictionary<string, object?> { ["kind"] = "error", ["message"] = "rejected reference=SYNTHETIC_REF" }
+            }
+        };
+
+        var safe = TelemetryPrivacy.ProtectEvent(envelope, new[] { "tag", "reference", "reason", "file" }, new[] { "exact_secret" });
+        Assert.NotNull(safe);
+        var browserEvent = Assert.IsType<Dictionary<string, object?>>(safe!.Payload["browser_event"]);
+        var target = Assert.IsType<Dictionary<string, object?>>(browserEvent["target"]);
+        Assert.Equal("script", target["tag_name"]);
+        var evidenceRef = Assert.IsType<Dictionary<string, object?>>(safe.Context!["evidence_reference"]);
+        Assert.Equal(failureRef, evidenceRef["failure_ref"]);
+        var payout = Assert.IsType<Dictionary<string, object?>>(safe.Context["payout"]);
+        Assert.Equal("[REDACTED]", payout["tag"]);
+        Assert.Equal("[REDACTED]", payout["reference"]);
+        Assert.Equal("[REDACTED]", payout["reason"]);
+        Assert.Equal("[REDACTED]", payout["file"]);
+
+        // Non-allowlisted tag_name must not bypass broad RedactFields=["tag"].
+        ((Dictionary<string, object?>)((Dictionary<string, object?>)envelope.Payload["browser_event"]!)["target"]!)["tag_name"] = "custom-widget";
+        var safeCustom = TelemetryPrivacy.ProtectEvent(envelope, new[] { "tag" }, Array.Empty<string>());
+        var customTarget = Assert.IsType<Dictionary<string, object?>>(Assert.IsType<Dictionary<string, object?>>(safeCustom!.Payload["browser_event"])["target"]);
+        Assert.Equal("[REDACTED]", customTarget["tag_name"]);
+    }
 }

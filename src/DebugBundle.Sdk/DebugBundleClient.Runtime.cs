@@ -17,8 +17,8 @@ public sealed partial class DebugBundleClient
         Dictionary<string, object?> redacted;
         try
         {
-            label = (string)TelemetryPrivacy.Protect(label, _options.RedactFields)!;
-            redacted = NormalizeProbeData(TelemetryPrivacy.Protect(_redactor.Redact(data), _options.RedactFields));
+            label = (string)TelemetryPrivacy.Protect(label, _options.RedactFields, _options.RedactExactFields)!;
+            redacted = NormalizeProbeData(TelemetryPrivacy.Protect(_redactor.Redact(data), _options.RedactFields, _options.RedactExactFields));
         }
         catch { return; }
         SdkRemoteConfig config;

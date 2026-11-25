@@ -42,20 +42,36 @@ public sealed class DebugBundleRedactor
     };
 
     private readonly HashSet<string> _sensitive;
+    private readonly HashSet<string> _exactSensitive;
 
     public DebugBundleRedactor(IEnumerable<string>? additionalFields = null)
+        : this(additionalFields, exactFields: null)
+    {
+    }
+
+    public DebugBundleRedactor(IEnumerable<string>? additionalFields, IEnumerable<string>? exactFields)
     {
         _sensitive = new HashSet<string>(DefaultSensitiveFields, StringComparer.OrdinalIgnoreCase);
-        if (additionalFields == null)
+        _exactSensitive = new HashSet<string>(StringComparer.Ordinal);
+        if (additionalFields != null)
         {
-            return;
+            foreach (var field in additionalFields.Take(129))
+            {
+                if (!string.IsNullOrWhiteSpace(field))
+                {
+                    _sensitive.Add(field.Trim());
+                }
+            }
         }
 
-        foreach (var field in additionalFields)
+        if (exactFields != null)
         {
-            if (!string.IsNullOrWhiteSpace(field))
+            foreach (var field in exactFields.Take(129))
             {
-                _sensitive.Add(field.Trim());
+                if (!string.IsNullOrWhiteSpace(field))
+                {
+                    _exactSensitive.Add(TelemetryPrivacy.AsciiLower(field.Trim()));
+                }
             }
         }
     }
@@ -148,7 +164,12 @@ public sealed class DebugBundleRedactor
             return false;
         }
 
-        var compact = new string(key.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+        if (_exactSensitive.Count > 0 && _exactSensitive.Contains(TelemetryPrivacy.AsciiLower(key!.Trim())))
+        {
+            return true;
+        }
+
+        var compact = new string(key!.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
         if (_sensitive.Contains(compact))
         {
             return true;

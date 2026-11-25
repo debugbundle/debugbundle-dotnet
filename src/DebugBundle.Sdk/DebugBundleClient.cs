@@ -30,7 +30,7 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDebugBundle
     {
         _options = options;
         _evidence = new EvidenceDeliveryState(options.EvidenceCapabilities);
-        _redactor = new DebugBundleRedactor(options.RedactFields);
+        _redactor = new DebugBundleRedactor(options.RedactFields, options.RedactExactFields);
         _probes = new ProbeBuffer(options.MaxProbeLabels, options.MaxProbeEntriesPerLabel);
         _buffer = new List<DebugBundleEventEnvelope>(options.BatchSize);
         try
@@ -243,7 +243,7 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDebugBundle
         {
             try
             {
-                var protectedContext = SafeContext(new Dictionary<string, object?> { [key] = value }, _options.RedactFields);
+                var protectedContext = SafeContext(new Dictionary<string, object?> { [key] = value }, _options.RedactFields, _options.RedactExactFields);
                 if (!protectedContext.TryGetValue(key, out safe)) return;
             }
             catch { return; }
@@ -261,7 +261,7 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDebugBundle
 
     public DebugBundleScope BeginScope(IDictionary<string, object?> values)
     {
-        var safe = SafeContext(values);
+        var safe = SafeContext(values, _options.RedactFields, _options.RedactExactFields);
         // This signed SDK control token is consumed locally, never emitted as telemetry.
         if (TelemetryPrivacy.IsSafeContainer(values))
         {
@@ -349,7 +349,18 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDebugBundle
                 EventPriorityFromPayload(payload) : eventType == "request_event" ?
                 RequestPriorityFromPayload(payload) : 1, eventType)) return false;
 
-            var redacted = ToDictionary(_redactor.Redact(payload));
+            Dictionary<string, object?> redacted;
+            if (eventType == "diagnostic_context")
+            {
+                redacted = new Dictionary<string, object?>(payload, StringComparer.Ordinal);
+            }
+            else
+            {
+                var queuePressure = eventType == "error_suppressed" &&
+                    payload.TryGetValue("reason", out var rawReason) && rawReason as string == "queue_pressure";
+                redacted = ToDictionary(_redactor.Redact(payload));
+                if (queuePressure) redacted["reason"] = "queue_pressure";
+            }
             var envelope = ProtectCandidate(BuildEnvelope(eventType, redacted, context));
             if (envelope == null || !ShouldCapturePreparedEvent(envelope)) return false;
             var eventBytes = EventBytes(envelope);
@@ -414,12 +425,40 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDebugBundle
         };
     }
 
-    private static Dictionary<string, object?> SafeContext(IDictionary<string, object?> values, IEnumerable<string>? additionalFields = null)
+    private static Dictionary<string, object?> SafeContext(
+        IDictionary<string, object?> values,
+        IEnumerable<string>? additionalFields = null,
+        IEnumerable<string>? exactFields = null)
     {
         try
         {
-            var safe = TelemetryPrivacy.Protect(values, additionalFields) as Dictionary<string, object?> ?? new Dictionary<string, object?>();
-            if (TelemetryPrivacy.IsSafeContainer(values)) RestoreCorrelation(values, safe);
+            Dictionary<string, object?>? preservedRef = null;
+            Dictionary<string, object?>? preservedLimits = null;
+            IDictionary<string, object?> input = values;
+            if (TelemetryPrivacy.IsSafeContainer(values) &&
+                (values.ContainsKey("evidence_reference") || values.ContainsKey("evidence_limits")))
+            {
+                var copy = new Dictionary<string, object?>(StringComparer.Ordinal);
+                foreach (var item in values)
+                {
+                    if (item.Key == "evidence_reference" && TelemetryPrivacy.TryPreserveEvidenceReference(item.Value) is { } safeRef)
+                    {
+                        preservedRef = safeRef;
+                        continue;
+                    }
+                    if (item.Key == "evidence_limits" && TelemetryPrivacy.TryPreserveEvidenceLimits(item.Value) is { } safeLimits)
+                    {
+                        preservedLimits = safeLimits;
+                        continue;
+                    }
+                    copy[item.Key] = item.Value;
+                }
+                input = copy;
+            }
+            var safe = TelemetryPrivacy.Protect(input, additionalFields, exactFields) as Dictionary<string, object?> ?? new Dictionary<string, object?>();
+            if (preservedRef != null) safe["evidence_reference"] = preservedRef;
+            if (preservedLimits != null) safe["evidence_limits"] = preservedLimits;
+            if (TelemetryPrivacy.IsSafeContainer(values)) RestoreCorrelation(values, safe, additionalFields, exactFields);
             return safe;
         }
         catch { return new Dictionary<string, object?>(); }
@@ -427,12 +466,16 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDebugBundle
 
     // Canonical correlation is protected as identity text, not as arbitrary
     // application attributes. In particular the valid session ID "0" must survive.
-    private static void RestoreCorrelation(IDictionary<string, object?> source, Dictionary<string, object?> destination)
+    private static void RestoreCorrelation(
+        IDictionary<string, object?> source,
+        Dictionary<string, object?> destination,
+        IEnumerable<string>? additionalFields = null,
+        IEnumerable<string>? exactFields = null)
     {
         foreach (var field in new[] { "trace_id", "request_id", "session_id", "user_id_hash" })
         {
             if (!source.TryGetValue(field, out var value)) continue;
-            if (value == null || value is string text && Equals(TelemetryPrivacy.Protect(text), text)) destination[field] = value;
+            if (value == null || value is string text && Equals(TelemetryPrivacy.Protect(text, additionalFields, exactFields), text)) destination[field] = value;
             else destination.Remove(field);
         }
     }
@@ -458,7 +501,7 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDebugBundle
 
         if (context != null)
         {
-            foreach (var item in SafeContext(context))
+            foreach (var item in SafeContext(context, _options.RedactFields, _options.RedactExactFields))
             {
                 result[item.Key] = item.Value;
             }
@@ -470,8 +513,23 @@ public sealed partial class DebugBundleClient : IDebugBundleClient, IDebugBundle
             AddIfMissing(result, "activity_span_id", Activity.Current.SpanId.ToString());
         }
 
+        Dictionary<string, object?>? preservedRef = null;
+        Dictionary<string, object?>? preservedLimits = null;
+        if (result.TryGetValue("evidence_reference", out var rawRef) && TelemetryPrivacy.TryPreserveEvidenceReference(rawRef) is { } safeRef)
+        {
+            preservedRef = safeRef;
+            result.Remove("evidence_reference");
+        }
+        if (result.TryGetValue("evidence_limits", out var rawLimits) && TelemetryPrivacy.TryPreserveEvidenceLimits(rawLimits) is { } safeLimits)
+        {
+            preservedLimits = safeLimits;
+            result.Remove("evidence_limits");
+        }
+
         var safe = ToDictionary(_redactor.Redact(result));
-        RestoreCorrelation(result, safe);
+        if (preservedRef != null) safe["evidence_reference"] = preservedRef;
+        if (preservedLimits != null) safe["evidence_limits"] = preservedLimits;
+        RestoreCorrelation(result, safe, _options.RedactFields, _options.RedactExactFields);
         return safe;
     }
 
