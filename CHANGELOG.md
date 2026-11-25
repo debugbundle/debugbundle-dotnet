@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-11-25
+
+- Add exact-key privacy to capture and ASP.NET Core relays while preserving validated protocol fields.
+
 ## [2.1.4] - 2026-11-15
 
 - Preserve invalid-return fallback when optional evidence is both malformed and oversized; cover mixed evidence fields with the shared hook-budget corpus.

@@ -17,7 +17,7 @@
     <Authors>DebugBundle</Authors>
     <Company>DebugBundle</Company>
     <PackageTags>debugbundle;observability;debugging;aspnetcore</PackageTags>
-    <VersionPrefix>2.1.4</VersionPrefix>
+    <VersionPrefix>2.2.0</VersionPrefix>
   </PropertyGroup>
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="" />

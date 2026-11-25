@@ -209,4 +209,81 @@ public sealed class RedactionTests
         var customTarget = Assert.IsType<Dictionary<string, object?>>(Assert.IsType<Dictionary<string, object?>>(safeCustom!.Payload["browser_event"])["target"]);
         Assert.Equal("[REDACTED]", customTarget["tag_name"]);
     }
+
+    [Fact]
+    public void ProtectEvent_Preserves_Validated_Timing_And_Csp_Observations()
+    {
+        var envelope = ResourceObservationEvent("https://cdn.example.test/widget.js", "timing");
+        var safe = TelemetryPrivacy.ProtectEvent(
+            envelope,
+            additionalFields: null,
+            exactFields: new[] { "kind", "source_url", "response_status", "disposition" });
+
+        Assert.NotNull(safe);
+        Assert.True(JsonNode.DeepEquals(
+            JsonSerializer.SerializeToNode(envelope.Payload),
+            JsonSerializer.SerializeToNode(safe!.Payload)));
+    }
+
+    [Theory]
+    [InlineData("https://cdn.example.test/widget.js?token=fixture", "timing")]
+    [InlineData("https://cdn.example.test/widget.js", "unknown")]
+    public void ProtectEvent_Rejects_Unvalidated_Resource_Observations(string sourceUrl, string firstKind)
+    {
+        Assert.Null(TelemetryPrivacy.ProtectEvent(ResourceObservationEvent(sourceUrl, firstKind)));
+    }
+
+    private static DebugBundleEventEnvelope ResourceObservationEvent(string sourceUrl, string firstKind)
+    {
+        const string observedAt = "2026-11-25T10:00:00Z";
+        return new DebugBundleEventEnvelope
+        {
+            SchemaVersion = "2026-03-01",
+            EventId = Guid.NewGuid().ToString(),
+            EventType = "diagnostic_context",
+            SdkName = "@debugbundle/sdk-browser",
+            SdkVersion = "3.3.0",
+            OccurredAt = observedAt,
+            Service = new DebugBundleServiceDescriptor { Name = "web", Runtime = "browser", Environment = "test" },
+            Correlation = new() { ["session_id"] = "browser-session" },
+            Payload = new()
+            {
+                ["version"] = 1,
+                ["kind"] = "resource_observation",
+                ["failure_ref"] = Guid.NewGuid().ToString(),
+                ["scope"] = new Dictionary<string, object?>
+                {
+                    ["kind"] = "page",
+                    ["page_id"] = Guid.NewGuid().ToString()
+                },
+                ["source_event_id"] = Guid.NewGuid().ToString(),
+                ["observations"] = new Dictionary<string, object?>
+                {
+                    ["version"] = 1,
+                    ["items"] = new List<object?>
+                    {
+                        new Dictionary<string, object?>
+                        {
+                            ["kind"] = firstKind,
+                            ["observed_at"] = observedAt,
+                            ["source_url"] = sourceUrl,
+                            ["availability"] = "observed",
+                            ["response_status"] = 404,
+                            ["duration_ms"] = 20,
+                            ["transfer_size_bytes"] = 1024
+                        },
+                        new Dictionary<string, object?>
+                        {
+                            ["kind"] = "csp",
+                            ["observed_at"] = observedAt,
+                            ["source_url"] = null,
+                            ["effective_directive"] = "script-src",
+                            ["disposition"] = "report",
+                            ["document_status_code"] = 200
+                        }
+                    }
+                }
+            }
+        };
+    }
 }
